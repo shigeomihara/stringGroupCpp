@@ -1,0 +1,8 @@
+sklearn-env/
+*~
+*.d
+*.obj
+*.exe
+*.lib
+*.zip
+*.bz2
