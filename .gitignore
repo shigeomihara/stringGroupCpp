@@ -6,3 +6,7 @@ sklearn-env/
 *.lib
 *.zip
 *.bz2
+*.cpp
+*.o
+
+
