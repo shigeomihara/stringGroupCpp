@@ -55,11 +55,18 @@ clean:
 	powershell rm *.exp
 	powershell rm *.d
 	powershell rm *~
-	powershell rm Graphs/*~
-	powershell rm Dat/*~
-	powershell rm Doc/*~
-	powershell rm Python/*~
+#powershell rm Graphs/*~
+#powershell rm Dat/*~
+#powershell rm Doc/*~
+#powershell rm Python/*~
 
+cleanMinGW:
+	rm -f *.exe
+	rm -f *.obj
+	rm -f *.lib
+	rm -f *.exp
+	rm -f *.d
+	rm -f *~
 cleanUbuntu:
 	rm -rf *~
 

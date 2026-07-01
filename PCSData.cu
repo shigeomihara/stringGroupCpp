@@ -6,6 +6,7 @@
 #include <fstream>
 #include <string>
 #include "PCSData.hh"
+#include "randDouble.hh"
 
 /*************** Constructor *************************/
 PCSData::PCSData(GlobalConstants &gc): m_gc(gc){
@@ -134,6 +135,12 @@ void PCSData::averageGTIV(){
 void PCSData::makeSimPCSDataPmax(SimPCSData &sd){
     std::fstream fs {"Dat/GTIVTimeSim.dat", std::ios_base::out};
     fs << std::scientific << std::setprecision(20);
+
+    RandDouble rand(0.0, 1.0);
+    for(int i=0; i<10; i++){
+	printf("%f\n", rand());
+    }
+    exit(0);
     
     StringGroup sg(m_gc, 1000.0, 25.0);
     AdaptiveModel* p_am = nullptr;
@@ -143,7 +150,9 @@ void PCSData::makeSimPCSDataPmax(SimPCSData &sd){
     bool beforeEvent {true};
     for(int n=0; n<G.size(); n++){
 	printf("%s\n", Time[n].c_str());///////////////////////////
+	
 	sg.setGT(G[n], T[n]);
+	exit(0);///////////////////////////////
 	
 	if(beforeEvent && Time[n]==timeEvent){
 	    beforeEvent = false;
