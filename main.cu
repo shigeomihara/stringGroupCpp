@@ -60,8 +60,8 @@ int main(void){
 
     PCSData pd(gc);
     SimPCSData spd;
-    pd.readFile("Dat/GTIVTime190507.dat");
-    pd.makeSimPCSDataPmax(spd);
+    pd.readFile("Dat/GTIVTime201905.dat");
+    pd.makeSimPCSData05(spd);
 
     // gc.haveGPU = false;///////////////////////////
     

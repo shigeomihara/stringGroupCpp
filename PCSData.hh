@@ -32,6 +32,7 @@ public:
     
     void averageGTIV();
     void makeSimPCSDataPmax(SimPCSData &sd);
+    void makeSimPCSData05(SimPCSData &sd);
     void addFault(StringGroup &sg, const double G, const double T);
     
     static std::vector<std::string> splitString(std::string str, char c);
