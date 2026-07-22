@@ -8,6 +8,7 @@
 #include "PCSData.hh"
 #include "randDouble.hh"
 #include <cmath>
+#include <sstream>
 
 /*************** Constructor *************************/
 PCSData::PCSData(GlobalConstants &gc): m_gc(gc){
@@ -188,67 +189,66 @@ void PCSData::makeSimPCSData05(SimPCSData &sd){
     std::fstream fs {"Dat/GTIVTimeSim.dat", std::ios_base::out};
     fs << std::scientific << std::setprecision(20);
 
-    double x {pow(0.7, 1.0/3.0)};
-    int faultStringNum {static_cast<int>(m_gc.S*x)};
-    int faultSubstringNum {static_cast<int>(m_gc.L*x)};
-    int faultCellNum {static_cast<int>(m_gc.Ns_sub*x)};
-    printf("x=%g, faultStringNum=%d, faultSubstringNum=%d, faultCellNum=%d, \n",
-	   x, faultStringNum, faultSubstringNum, faultCellNum);
-    exit(0);
-
-    RandDouble rand(0.0, 1.0);
-
-    for(int n_string=0; n_string<m_gc.S; n_string++){
-	for(int n_substring=0; n_substring<m_gc.L; n_substring++){
-	    int sentakuNum {0};
-	    for(int n_cell=0; n_cell<m_gc.Ns_sub; n_cell++){
-		double r {rand()};
-		if(r<=0.7) sentakuNum++;
-	    }
-	    printf("n_string=%d, n_substring=%d, sentakuNum=%d\n",
-		       n_string, n_substring, sentakuNum);
-	}
-    }
-    exit(0);
-    
     StringGroup sg(m_gc, 1000.0, 25.0);
     AdaptiveModel* p_am = nullptr;
 
-    std::string timeEvent {"2019/5/7/12:0"};
-    // std::string timeEvent {"2019/5/7/9:5"};
-    bool beforeEvent {true};
-    for(int n=0; n<G.size(); n++){
-	printf("%s\n", Time[n].c_str());///////////////////////////
-	
-	sg.setGT(G[n], T[n]);
-	exit(0);///////////////////////////////
-	
-	if(beforeEvent && Time[n]==timeEvent){
-	    beforeEvent = false;
-	    addFault(sg, G[n], T[n]);
+    deployFaultCells(sg, 1000.0, 25.0);
+    p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
 
-	    p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
-	}
-	
-	if(beforeEvent == false){
-	    p_am->set5params(10.0, p_am->getEta(), p_am->getRh(), p_am->getI0(),
+    double finalRate {100.0};
+    double rate {std::exp(std::log(finalRate)/G.size())};
+    // printf("rate=%g, pow(rate, N)=%g\n", rate, std::pow(rate, G.size()));
+
+    stringstream ss {};
+    ss << std::scientific << std::setprecision(10);
+
+    ss << "Time, Gmeas, Tmeas, Imeas, Vmeas, ImpSim, VmpSim, Rs, RsSim, mul\n";
+    fs << ss.str();
+    std::cout << ss.str();
+    
+    double mul {1.0};
+    for(int n=0; n<G.size(); n++){
+	// printf("%s\n", Time[n].c_str());///////////////////////////
+	sg.setGT(G[n], T[n]);
+
+	double Rs {p_am->getRs()};
+	double RsSim {Rs*mul};
+	p_am->set5params(RsSim, p_am->getEta(), p_am->getRh(), p_am->getI0(),
 			     p_am->getIph());
-	    // p_am->set5params(0.1, p_am->getEta(), p_am->getRh(), p_am->getI0(),
-	    // 		     p_am->getIph());
-	    sg.refreshMaxMin();
-	    // printf("am.Rs=%g\n", p_am->getRs());///////////////////
-	}
+	sg.refreshMaxMin();
 	
 	double VmpSim, ImpSim;
 	sg.getPmax(VmpSim, ImpSim);
 
-	fs << G[n] << ", " << T[n] << ", " << I[n] << ", " << V[n]
-	   << ", " << Time[n] << ", " << ImpSim << ", " << VmpSim << std::endl;
+	ss.str("");  // clear ss
+	ss << Time[n] << ", " << G[n] << ", " << T[n] << ", " << I[n] << ", " << V[n]
+	   << ", " << ImpSim << ", " << VmpSim << ", " << Rs << ", " << RsSim
+	   << ", " << mul << std::endl;
+	fs << ss.str();
+	std::cout << ss.str();
 
+	mul *= rate;
 	// if(n==10) break; //////////////////////////////////
     }
     fs.close();
     printf("file 'Dat/GTIVTimeSim.dat' saved.\n");////////////////////////
+}
+
+/***************** Jul. 22, 2026-- ************************/
+void PCSData::deployFaultCells(StringGroup &sg, const double G, const double T){
+    double x {pow(0.7, 1.0/3.0)};
+    int faultStringNum {static_cast<int>(m_gc.S*x)};
+    int faultSubstringNum {static_cast<int>(m_gc.L*x)};
+    int faultCellNum {static_cast<int>(m_gc.Ns_sub*x)};
+    // printf("x=%g, faultStringNum=%d, faultSubstringNum=%d, faultCellNum=%d, \n",
+    // 	   x, faultStringNum, faultSubstringNum, faultCellNum);
+
+    AdaptiveModel am(m_gc, G, T);
+    Substring ss(m_gc, G, T);
+    ss.addAM(am, faultCellNum);
+    StringModel sm(m_gc, G, T);
+    sm.addSS(ss, faultSubstringNum);
+    sg.addSM(sm, faultStringNum);
 }
 
 /****************************************************************/

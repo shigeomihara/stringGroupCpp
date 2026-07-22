@@ -113,7 +113,7 @@ void StringGroup::setGT(double G, double T){
 
 }
 
-/****** Suppose refreshment after set5params of adaptiveModel ***********/
+/****** Refresh maxmin parameters after set5params of adaptiveModel ***********/
 void StringGroup::refreshMaxMin(){
     m_smInit.refreshMaxMin();
     for(int i=0; i<m_vsm.size(); i++) m_vsm[i].refreshMaxMin();

@@ -9,7 +9,7 @@
 #include "stringGroup.hh"
 
 struct SimPCSData{
-std::vector<double> G;
+    std::vector<double> G;
     std::vector<double> T;
     std::vector<double> I;
     std::vector<double> V;
@@ -34,6 +34,7 @@ public:
     void makeSimPCSDataPmax(SimPCSData &sd);
     void makeSimPCSData05(SimPCSData &sd);
     void addFault(StringGroup &sg, const double G, const double T);
+    void deployFaultCells(StringGroup &sg, const double G, const double T);
     
     static std::vector<std::string> splitString(std::string str, char c);
 };
