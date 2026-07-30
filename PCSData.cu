@@ -197,11 +197,43 @@ void PCSData::makeSimPCSData05Iph(SimPCSData &sd){
     p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
 
     MyCalendar myCal;
-    
-    for(int n=0; n<G.size(); n++){
-	myCal.set(Time[n]);
-	if(n==10) break;
+
+    int n {0};  // current GTIVTime number
+    while(true){
+        int n1 {getThisDayFinalNum(n)};
+        printf("n1=%d\n", n1);
+
+        MyCalendar myCal[10];
+        getRandomTimes(myCal);
+        exit(0);
+        
+    // for(int n=0; n<G.size(); n++){
+    //     myCal.set(Time[n]);
+    //     if(n==10) break;
     }
+}
+
+/******************************* Jul. 30, 2026-- ******************************/
+void PCSData::getRandomTimes(MyCalendar myCal[]){
+    RandDouble rand(0.0, 1.0);
+    double r[11];
+    
+    for(int i=0; i<=10; i++){
+        r[i] = rand();
+        printf("r[%d]=%f\n", i, r[i]);
+    }
+}
+
+/******************************* Jul. 30, 2026-- ******************************/
+int PCSData::getThisDayFinalNum(int n){
+    MyCalendar myCal(Time[n]);
+    MyCalendar myCal1;
+
+    for(int i=n+1; i<G.size(); i++){
+        myCal1.set(Time[i]);
+        if(myCal1.tm_mday != myCal.tm_mday) return i-1;
+    }
+    return 0;
 }
 
 /******************************* Jul. 16, 2026-- ******************************/

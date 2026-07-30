@@ -7,6 +7,7 @@
 #include <vector>
 #include "globalConstants.hh"
 #include "stringGroup.hh"
+#include "myCalendar.hh"
 
 struct SimPCSData{
     std::vector<double> G;
@@ -19,6 +20,7 @@ struct SimPCSData{
 class PCSData{
 private:
     GlobalConstants &m_gc;
+    int getThisDayFinalNum(int n);
 public:
     PCSData(GlobalConstants &gc);
     std::vector<double> G;
@@ -36,6 +38,7 @@ public:
     void makeSimPCSData05Iph(SimPCSData &sd);
     void addFault(StringGroup &sg, const double G, const double T);
     void deployFaultCells(StringGroup &sg, double rate, const double G, const double T);
+    void getRandomTimes(MyCalendar myCal[]);
     
     static std::vector<std::string> splitString(std::string str, char c);
 };

@@ -29,7 +29,7 @@ OPTIONS= -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professiona
 # EXT=cpp
 # OBJ=o
 
-SRCS=main.${EXT} PCSData.${EXT} LambertWhara.${EXT} adaptiveModel.${EXT} substring.${EXT} stringModel.${EXT} stringGroup.${EXT} globalConstants.${EXT} searchHistoryAM.${EXT}
+SRCS=main.${EXT} PCSData.${EXT} LambertWhara.${EXT} adaptiveModel.${EXT} substring.${EXT} stringModel.${EXT} stringGroup.${EXT} globalConstants.${EXT} searchHistoryAM.${EXT} myCalendar.${EXT}
 OBJS=$(SRCS:.${EXT}=.${OBJ})
 DEPS=$(SRCS:.${EXT}=.d)
 
