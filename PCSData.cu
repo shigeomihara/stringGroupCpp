@@ -195,6 +195,13 @@ void PCSData::makeSimPCSData05Iph(SimPCSData &sd){
 
     deployFaultCells(sg, 0.5, 1000.0, 25.0);
     p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
+
+    MyCalendar myCal;
+    
+    for(int n=0; n<G.size(); n++){
+	myCal.set(Time[n]);
+	if(n==10) break;
+    }
 }
 
 /******************************* Jul. 16, 2026-- ******************************/
