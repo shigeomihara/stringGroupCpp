@@ -9,6 +9,7 @@
 #include "randDouble.hh"
 #include <cmath>
 #include <sstream>
+#include "myCalendar.hh"
 
 /*************** Constructor *************************/
 PCSData::PCSData(GlobalConstants &gc): m_gc(gc){
@@ -184,6 +185,18 @@ void PCSData::makeSimPCSDataPmax(SimPCSData &sd){
     printf("file 'Dat/GTIVTimeSim.dat' saved.\n");////////////////////////
 }
 
+/******************************* Jul. 30, 2026-- ******************************/
+void PCSData::makeSimPCSData05Iph(SimPCSData &sd){
+    std::fstream fs {"Dat/GTIVTimeSim.dat", std::ios_base::out};
+    fs << std::scientific << std::setprecision(20);
+
+    StringGroup sg(m_gc, 1000.0, 25.0);
+    AdaptiveModel* p_am = nullptr;
+
+    deployFaultCells(sg, 0.5, 1000.0, 25.0);
+    p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
+}
+
 /******************************* Jul. 16, 2026-- ******************************/
 void PCSData::makeSimPCSData05(SimPCSData &sd){
     std::fstream fs {"Dat/GTIVTimeSim.dat", std::ios_base::out};
@@ -192,7 +205,7 @@ void PCSData::makeSimPCSData05(SimPCSData &sd){
     StringGroup sg(m_gc, 1000.0, 25.0);
     AdaptiveModel* p_am = nullptr;
 
-    deployFaultCells(sg, 1000.0, 25.0);
+    deployFaultCells(sg, 0.7, 1000.0, 25.0);
     p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
 
     double finalRate {100.0};
@@ -235,8 +248,8 @@ void PCSData::makeSimPCSData05(SimPCSData &sd){
 }
 
 /***************** Jul. 22, 2026-- ************************/
-void PCSData::deployFaultCells(StringGroup &sg, const double G, const double T){
-    double x {pow(0.7, 1.0/3.0)};
+void PCSData::deployFaultCells(StringGroup &sg, double rate, const double G, const double T){
+    double x {pow(rate, 1.0/3.0)};
     int faultStringNum {static_cast<int>(m_gc.S*x)};
     int faultSubstringNum {static_cast<int>(m_gc.L*x)};
     int faultCellNum {static_cast<int>(m_gc.Ns_sub*x)};
