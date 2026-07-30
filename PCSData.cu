@@ -196,32 +196,106 @@ void PCSData::makeSimPCSData05Iph(SimPCSData &sd){
     deployFaultCells(sg, 0.5, 1000.0, 25.0);
     p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
 
+    stringstream ss {};
+    ss << std::scientific << std::setprecision(10);
+
+    ss << "Time, Gmeas, Tmeas, Imeas, Vmeas, ImpSim, VmpSim, 0or1\n";
+    fs << ss.str();
+    std::cout << ss.str();
+    
     MyCalendar myCal;
 
     int n {0};  // current GTIVTime number
     while(true){
         int n1 {getThisDayFinalNum(n)};
-        printf("n1=%d\n", n1);
+        if(n1==0) break;
+        // printf("n1=%d\n", n1);
 
         MyCalendar myCal[10];
+        for(int i=0; i<10; i++) myCal[i].set(Time[n]);
         getRandomTimes(myCal);
-        exit(0);
-        
-    // for(int n=0; n<G.size(); n++){
-    //     myCal.set(Time[n]);
-    //     if(n==10) break;
+
+        MyCalendar myCalEnd[10];
+        for(int i=0; i<10; i++){
+            myCalEnd[i].set(myCal[i]);
+            myCalEnd[i].addMin(15);
+            // myCal[i].print();//////////////////
+            // myCalEnd[i].print();//////////////////
+        }
+
+        MyCalendar cal;
+        double IphSim;
+        int zeroOne;
+        for( ; n<=n1 ; n++){
+            sg.setGT(G[n], T[n]);
+            IphSim = p_am->getIph();
+            
+            cal.set(Time[n]);
+            
+            if(isBetween(cal, myCal, myCalEnd, 10)){
+                // printf("%s 1\n", Time[n].c_str());
+                zeroOne = 1;
+                IphSim *= 0.5;
+            }else{
+                // printf("%s 0\n", Time[n].c_str());
+                zeroOne = 0;
+            }
+
+            p_am->set5params(p_am->getRs(), p_am->getEta(), p_am->getRh(), p_am->getI0(),
+			     IphSim);
+            sg.refreshMaxMin();
+	
+            double VmpSim, ImpSim;
+            sg.getPmax(VmpSim, ImpSim);
+
+            ss.str("");  // clear ss
+            ss << Time[n] << ", " << G[n] << ", " << T[n] << ", " << I[n] << ", " << V[n]
+               << ", " << ImpSim << ", " << VmpSim << ", " << zeroOne << std::endl;
+            fs << ss.str();
+            std::cout << ss.str();
+        }
+
+        if(n >= G.size()-1) break;
     }
+    
+    fs.close();
+    printf("file 'Dat/GTIVTimeSim.dat' saved.\n");////////////////////////
+}
+
+/*************************************************************/
+bool PCSData::isBetween(MyCalendar cal, MyCalendar calStart[], MyCalendar calEnd[], int size){
+    for(int i=0; i<size; i++){
+        if(cal.after(calStart[i]) && cal.before(calEnd[i])) return true;
+    }
+    return false;
 }
 
 /******************************* Jul. 30, 2026-- ******************************/
 void PCSData::getRandomTimes(MyCalendar myCal[]){
     RandDouble rand(0.0, 1.0);
-    double r[11];
+    double r[11], s[11], hour[11];
     
     for(int i=0; i<=10; i++){
         r[i] = rand();
-        printf("r[%d]=%f\n", i, r[i]);
+        // printf("r[%d]=%f\n", i, r[i]);
     }
+
+    s[0] = r[0];
+    for(int i=1; i<=10; i++){
+        s[i] = s[i-1]+r[i];
+        // printf("s[%d]=%f\n", i, s[i]);
+    }
+
+    for(int i=0; i<=10; i++){
+        hour[i] = s[i]/s[10]*7.0;  // ‚P‚UŽž[‚XŽž‚VŽžŠÔ
+    }
+
+    for(int i=0; i<10; i++){
+        myCal[i].set(9, 0);
+        myCal[i].addHour(hour[i]);
+        // myCal[i].print();
+    }
+    
 }
 
 /******************************* Jul. 30, 2026-- ******************************/

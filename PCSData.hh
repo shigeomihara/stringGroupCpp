@@ -21,7 +21,8 @@ class PCSData{
 private:
     GlobalConstants &m_gc;
     int getThisDayFinalNum(int n);
-public:
+    bool isBetween(MyCalendar cal, MyCalendar calStart[], MyCalendar calEnd[], int size);
+ public:
     PCSData(GlobalConstants &gc);
     std::vector<double> G;
     std::vector<double> T;
