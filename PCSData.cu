@@ -199,7 +199,7 @@ void PCSData::makeSimPCSData05Iph(SimPCSData &sd){
     stringstream ss {};
     ss << std::scientific << std::setprecision(10);
 
-    ss << "Time, Gmeas, Tmeas, Imeas, Vmeas, ImpSim, VmpSim, 0or1\n";
+    ss << "Time, Gmeas, Tmeas, Imeas, Vmeas, ImpSim, VmpSim, IphSim, 0or1\n";
     fs << ss.str();
     std::cout << ss.str();
     
@@ -250,7 +250,7 @@ void PCSData::makeSimPCSData05Iph(SimPCSData &sd){
 
             ss.str("");  // clear ss
             ss << Time[n] << ", " << G[n] << ", " << T[n] << ", " << I[n] << ", " << V[n]
-               << ", " << ImpSim << ", " << VmpSim << ", " << zeroOne << std::endl;
+               << ", " << ImpSim << ", " << VmpSim << ", " << IphSim << ", " << zeroOne << std::endl;
             fs << ss.str();
             std::cout << ss.str();
         }
