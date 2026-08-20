@@ -60,7 +60,8 @@ int main(void){
 
     PCSData pd(gc);
     SimPCSData spd;
-    pd.readFile("Dat/GTIVTime201905.dat");
+    // pd.readFile("Dat/GTIVTime201905.dat");
+    pd.readFile("Dat/GTIVTime201905G03.dat");
     // pd.makeSimPCSData05(spd);
     pd.makeSimPCSData05Iph(spd);
 

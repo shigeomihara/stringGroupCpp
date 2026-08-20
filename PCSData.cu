@@ -367,7 +367,7 @@ void PCSData::deployFaultCells(StringGroup &sg, double rate, const double G, con
     int faultSubstringNum {static_cast<int>(m_gc.L*x)};
     int faultCellNum {static_cast<int>(m_gc.Ns_sub*x)};
     // printf("x=%g, faultStringNum=%d, faultSubstringNum=%d, faultCellNum=%d, \n",
-    // 	   x, faultStringNum, faultSubstringNum, faultCellNum);
+    //        x, faultStringNum, faultSubstringNum, faultCellNum);
 
     AdaptiveModel am(m_gc, G, T);
     Substring ss(m_gc, G, T);
