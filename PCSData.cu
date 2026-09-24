@@ -322,7 +322,8 @@ void PCSData::makeSimPCSData05(SimPCSData &sd){
     p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
 
     double finalRate {100.0};
-    double rate {std::exp(std::log(finalRate)/G.size())};
+    // double rate {std::exp(std::log(finalRate)/G.size())};
+    double rate {std::exp(std::log(finalRate)/(60*7*3))}; // ‚R“ú‚ÅŒJ‚è•Ô‚·
     // printf("rate=%g, pow(rate, N)=%g\n", rate, std::pow(rate, G.size()));
 
     stringstream ss {};
@@ -354,6 +355,7 @@ void PCSData::makeSimPCSData05(SimPCSData &sd){
 	std::cout << ss.str();
 
 	mul *= rate;
+        if (mul >= 100) mul = 1.0; 
 	// if(n==10) break; //////////////////////////////////
     }
     fs.close();
