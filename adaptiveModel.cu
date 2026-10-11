@@ -167,15 +167,17 @@ void AdaptiveModel::calcA0B0(){
  *  戻り値：Emin (==INFINITYのときは、Rs, etaなどが設定されていないので注意）   *****/
 double AdaptiveModel::calc(){
     SearchResult sr0 {m_Isc, m_Voc, m_Imp, m_Vmp, m_Tkel, m_absA0, m_absB0,
-		     m_Rs, m_eta, m_Rh, m_I0, m_Iph, 0.0};
+		      m_Rs, m_eta, m_Rh, m_I0, m_Iph, 0.0};
     int iSr {m_gc.sh.haveSearchResult(sr0)};
+    iSr = -1; ///////////////////////////tmp
     if(iSr >= 0){
 	m_Rs = m_gc.sh.m_vsr[iSr].Rs;
 	m_eta = m_gc.sh.m_vsr[iSr].eta;
 	m_Rh = m_gc.sh.m_vsr[iSr].Rh;
 	m_I0 = m_gc.sh.m_vsr[iSr].I0;
 	m_Iph = m_gc.sh.m_vsr[iSr].Iph;
-	// printf("calc: haveSearchResult\n");//////////////////////////
+	printf("calc: haveSearchResult, Emin=%g\n",
+	       m_gc.sh.m_vsr[iSr].Emin);//////////////////////////
 	return m_gc.sh.m_vsr[iSr].Emin;
     }
     
@@ -184,270 +186,272 @@ double AdaptiveModel::calc(){
     if(!m_gc.haveGPU) Emin = calcNoGPU();  // GPUを使わないとき
 
 #if !defined(UBUNTU)
-    cudaError_t err = cudaSuccess;
-    size_t sizeAll {m_numThreads*sizeof(double)};  // スレッドの総数に対応するdoubleメモリサイズ
-    size_t sizeRs {m_numThreadsRs*sizeof(double)};
-    size_t sizeEta {m_numThreadsEta*sizeof(double)};
+    else{
+	cudaError_t err = cudaSuccess;
+	size_t sizeAll {m_numThreads*sizeof(double)};  // スレッドの総数に対応するdoubleメモリサイズ
+	size_t sizeRs {m_numThreadsRs*sizeof(double)};
+	size_t sizeEta {m_numThreadsEta*sizeof(double)};
 
-    // 各スレッドのRs探索範囲の下限である配列Rs0nthの準備
-    double *Rs0nth = (double *)malloc(sizeRs);
-    if(Rs0nth==NULL){
-	fprintf(stderr, "Failed to allocate host vector Rs0nth\n");
-	exit(EXIT_FAILURE);
-    }
+	// 各スレッドのRs探索範囲の下限である配列Rs0nthの準備
+	double *Rs0nth = (double *)malloc(sizeRs);
+	if(Rs0nth==NULL){
+	    fprintf(stderr, "Failed to allocate host vector Rs0nth\n");
+	    exit(EXIT_FAILURE);
+	}
   
-    // 各スレッドのEta探索範囲の下限である配列eta0nthの準備
-    double *eta0nth = (double *)malloc(sizeEta);
-    if(eta0nth==NULL){
-	fprintf(stderr, "Failed to allocate host vector eta0nth\n");
-	exit(EXIT_FAILURE);
-    }
+	// 各スレッドのEta探索範囲の下限である配列eta0nthの準備
+	double *eta0nth = (double *)malloc(sizeEta);
+	if(eta0nth==NULL){
+	    fprintf(stderr, "Failed to allocate host vector eta0nth\n");
+	    exit(EXIT_FAILURE);
+	}
   
-    // 各スレッドが探索するRsの範囲の下限
-    double *d_Rs0nth = NULL;
-    err = cudaMalloc((void **)&d_Rs0nth, sizeRs);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector Rs0nth (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
+	// 各スレッドが探索するRsの範囲の下限
+	double *d_Rs0nth = NULL;
+	err = cudaMalloc((void **)&d_Rs0nth, sizeRs);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector Rs0nth (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
 
-    // 各スレッドが探索するEtaの範囲の下限
-    double *d_eta0nth = NULL;
-    err = cudaMalloc((void **)&d_eta0nth, sizeEta);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector Eta0nth (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
+	// 各スレッドが探索するEtaの範囲の下限
+	double *d_eta0nth = NULL;
+	err = cudaMalloc((void **)&d_eta0nth, sizeEta);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector Eta0nth (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
 
-    // 各スレッドが探索した最小のEに対するRsの値
-    double *d_RsMin = NULL;
-    err = cudaMalloc((void **)&d_RsMin, sizeAll);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector RsMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
+	// 各スレッドが探索した最小のEに対するRsの値
+	double *d_RsMin = NULL;
+	err = cudaMalloc((void **)&d_RsMin, sizeAll);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector RsMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
   
-    // 各スレッドが探索した最小のEに対するRhの値、 Rh<0のことがあるので
-    double *d_RhMin = NULL;
-    err = cudaMalloc((void **)&d_RhMin, sizeAll);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector RhMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
+	// 各スレッドが探索した最小のEに対するRhの値、 Rh<0のことがあるので
+	double *d_RhMin = NULL;
+	err = cudaMalloc((void **)&d_RhMin, sizeAll);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector RhMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
   
-    // 各スレッドが探索した最小のEに対するetaの値
-    double *d_etaMin = NULL;
-    err = cudaMalloc((void **)&d_etaMin, sizeAll);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector etaMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
+	// 各スレッドが探索した最小のEに対するetaの値
+	double *d_etaMin = NULL;
+	err = cudaMalloc((void **)&d_etaMin, sizeAll);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector etaMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
   
-    // 各スレッドが探索した最小のEの値
-    double *d_Emin = NULL;
-    err = cudaMalloc((void **)&d_Emin, sizeAll);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector Emin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
+	// 各スレッドが探索した最小のEの値
+	double *d_Emin = NULL;
+	err = cudaMalloc((void **)&d_Emin, sizeAll);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector Emin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
 
-    double *RsMinTh = (double *)malloc(sizeAll);  // コピー先の配列
-    if(RsMinTh==NULL){
-	fprintf(stderr, "Failed to allocate host vector RsMinTh\n");
-	exit(EXIT_FAILURE);
-    }
+	double *RsMinTh = (double *)malloc(sizeAll);  // コピー先の配列
+	if(RsMinTh==NULL){
+	    fprintf(stderr, "Failed to allocate host vector RsMinTh\n");
+	    exit(EXIT_FAILURE);
+	}
 	
-    double *RhMinTh = (double *)malloc(sizeAll);  // コピー先の配列////////////////////t
-    if(RhMinTh==NULL){
-	fprintf(stderr, "Failed to allocate host vector RhMinTh\n");
-	exit(EXIT_FAILURE);
-    }
+	double *RhMinTh = (double *)malloc(sizeAll);  // コピー先の配列////////////////////t
+	if(RhMinTh==NULL){
+	    fprintf(stderr, "Failed to allocate host vector RhMinTh\n");
+	    exit(EXIT_FAILURE);
+	}
   
-    double *etaMinTh = (double *)malloc(sizeAll);  // コピー先の配列
-    if(etaMinTh==NULL){
-	fprintf(stderr, "Failed to allocate host vector etaMinTh\n");
-	exit(EXIT_FAILURE);
-    }
+	double *etaMinTh = (double *)malloc(sizeAll);  // コピー先の配列
+	if(etaMinTh==NULL){
+	    fprintf(stderr, "Failed to allocate host vector etaMinTh\n");
+	    exit(EXIT_FAILURE);
+	}
 	
-    double *EminTh = (double *)malloc(sizeAll);  // コピー先の配列
-    if(EminTh==NULL){
-	fprintf(stderr, "Failed to allocate host vector EminTh\n");
-	exit(EXIT_FAILURE);
-    }
+	double *EminTh = (double *)malloc(sizeAll);  // コピー先の配列
+	if(EminTh==NULL){
+	    fprintf(stderr, "Failed to allocate host vector EminTh\n");
+	    exit(EXIT_FAILURE);
+	}
   
-    for(int count=0; count<3; count++){  // 探索範囲変更のループ
+	for(int count=0; count<3; count++){  // 探索範囲変更のループ
     
-	double kRs = std::exp( std::log(m_Rs1/m_Rs0) /(m_NRs-1) );
-	double dEta = (m_eta1-m_eta0)/(m_NEta-1);
+	    double kRs = std::exp( std::log(m_Rs1/m_Rs0) /(m_NRs-1) );
+	    double dEta = (m_eta1-m_eta0)/(m_NEta-1);
 
-	Rs0nth[0] = m_Rs0;
-	double knRs = std::exp( std::log(m_Rs1/m_Rs0)*m_nRs/(m_NRs-1) );
+	    Rs0nth[0] = m_Rs0;
+	    double knRs = std::exp( std::log(m_Rs1/m_Rs0)*m_nRs/(m_NRs-1) );
 
-	for(int n=1; n<m_numThreadsRs; n++){
-	    Rs0nth[n] = Rs0nth[n-1]*knRs;
-	}
+	    for(int n=1; n<m_numThreadsRs; n++){
+		Rs0nth[n] = Rs0nth[n-1]*knRs;
+	    }
 	
-	eta0nth[0] = m_eta0;
-	double dnEta = dEta*m_nEta;
+	    eta0nth[0] = m_eta0;
+	    double dnEta = dEta*m_nEta;
 
-	for(int n=1; n<m_numThreadsEta; n++){
-	    eta0nth[n] = eta0nth[n-1]+dnEta;
-	}
+	    for(int n=1; n<m_numThreadsEta; n++){
+		eta0nth[n] = eta0nth[n-1]+dnEta;
+	    }
 
-	// Rs探索範囲の下限である配列Rs0nthのGPUへのコピー
-	err = cudaMemcpy(d_Rs0nth, Rs0nth, sizeRs, cudaMemcpyHostToDevice);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector Rs0nth from host to device (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}
+	    // Rs探索範囲の下限である配列Rs0nthのGPUへのコピー
+	    err = cudaMemcpy(d_Rs0nth, Rs0nth, sizeRs, cudaMemcpyHostToDevice);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector Rs0nth from host to device (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
 
-	// Eta探索範囲の下限である配列Eta0nthのGPUへのコピー
-	err = cudaMemcpy(d_eta0nth, eta0nth, sizeEta, cudaMemcpyHostToDevice);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector eta0nth from host to device (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}
+	    // Eta探索範囲の下限である配列Eta0nthのGPUへのコピー
+	    err = cudaMemcpy(d_eta0nth, eta0nth, sizeEta, cudaMemcpyHostToDevice);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector eta0nth from host to device (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
 
-	// GPUカーネルの実行
-	Search<<<m_numBlocks, m_threadsPerBlock>>>(d_Rs0nth, d_eta0nth,
-						   d_RsMin, d_RhMin, d_etaMin, d_Emin,
-						   m_Isc, m_Voc, m_Imp, m_Vmp,
-						   m_alphaSc, m_betaOc, m_gammaMp,
-						   m_NsVt, m_W01, m_W02, m_etad, 1.0/m_Tkel,
-						   kRs, dEta, m_nRs, m_nEta, m_absA0, m_absB0);
-	err = cudaGetLastError();
+	    // GPUカーネルの実行
+	    Search<<<m_numBlocks, m_threadsPerBlock>>>(d_Rs0nth, d_eta0nth,
+						       d_RsMin, d_RhMin, d_etaMin, d_Emin,
+						       m_Isc, m_Voc, m_Imp, m_Vmp,
+						       m_alphaSc, m_betaOc, m_gammaMp,
+						       m_NsVt, m_W01, m_W02, m_etad, 1.0/m_Tkel,
+						       kRs, dEta, m_nRs, m_nEta, m_absA0, m_absB0);
+	    err = cudaGetLastError();
 
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to launch CUDA kernel (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}else{
-	    // fprintf(stderr, "# Succeeded to launch CUDA kernel (success code: %s)!\n", cudaGetErrorString(err));/////////////////t
-	}    
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to launch CUDA kernel (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }else{
+		// fprintf(stderr, "# Succeeded to launch CUDA kernel (success code: %s)!\n", cudaGetErrorString(err));/////////////////t
+	    }    
 
-	// 探索されたRsの値のホストへのコピー
-	err = cudaMemcpy(RsMinTh, d_RsMin, sizeAll, cudaMemcpyDeviceToHost);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector RsMin from device to host (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}
+	    // 探索されたRsの値のホストへのコピー
+	    err = cudaMemcpy(RsMinTh, d_RsMin, sizeAll, cudaMemcpyDeviceToHost);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector RsMin from device to host (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
   
-	// 探索されたRhの値のホストへのコピー  ///////////////////t
-	err = cudaMemcpy(RhMinTh, d_RhMin, sizeAll, cudaMemcpyDeviceToHost);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector RhMin from device to host (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}
+	    // 探索されたRhの値のホストへのコピー  ///////////////////t
+	    err = cudaMemcpy(RhMinTh, d_RhMin, sizeAll, cudaMemcpyDeviceToHost);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector RhMin from device to host (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
   
-	// 探索されたetaの値のホストへのコピー
-	err = cudaMemcpy(etaMinTh, d_etaMin, sizeAll, cudaMemcpyDeviceToHost);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector etaMin from device to host (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}
+	    // 探索されたetaの値のホストへのコピー
+	    err = cudaMemcpy(etaMinTh, d_etaMin, sizeAll, cudaMemcpyDeviceToHost);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector etaMin from device to host (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
   
-	// 探索されたEminの値のホストへのコピー
-	err = cudaMemcpy(EminTh, d_Emin, sizeAll, cudaMemcpyDeviceToHost);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector Emin from device to host (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}
+	    // 探索されたEminの値のホストへのコピー
+	    err = cudaMemcpy(EminTh, d_Emin, sizeAll, cudaMemcpyDeviceToHost);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector Emin from device to host (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
 
-	// 最小値（最適値）の決定
-	Emin = std::numeric_limits<double>::infinity();
-	for(int nth=0; nth<m_numThreads; nth++){
-	    if(EminTh[nth] < Emin){
-		// this->m_Rs = RsMinTh[nth];
-		// this->m_eta = etaMinTh[nth];
-		// this->m_Rh = RhMinTh[nth];//////////////////////t
-		m_Rs = RsMinTh[nth];
-		m_eta = etaMinTh[nth];
-		m_Rh = RhMinTh[nth];//////////////////////t
-		Emin = EminTh[nth];
+	    // 最小値（最適値）の決定
+	    Emin = std::numeric_limits<double>::infinity();
+	    for(int nth=0; nth<m_numThreads; nth++){
+		if(EminTh[nth] < Emin){
+		    // this->m_Rs = RsMinTh[nth];
+		    // this->m_eta = etaMinTh[nth];
+		    // this->m_Rh = RhMinTh[nth];//////////////////////t
+		    m_Rs = RsMinTh[nth];
+		    m_eta = etaMinTh[nth];
+		    m_Rh = RhMinTh[nth];//////////////////////t
+		    Emin = EminTh[nth];
+		}
+	    }
+
+	    // // 2024.3.20
+	    // // ひとつもRh>=0のような条件を満たすRs, etaがなかったら、探索を終わる
+	    // if(Emin == INFINITY){
+	    //     // std::cout << "AdaptiveModel::calc()$$ no suitable Rs and eta, Emin==INFINITY\n";///////////////////t
+	    //     break;
+	    // }
+	
+	    // 最適値が範囲の端から2番目以内だったら、探索範囲を取り直して再探索。
+	    if(this->m_Rs <= m_Rs0*pow(kRs, 1.5)){
+		double a = 1.05*m_Rs0/m_Rs1;
+		m_Rs0 *= a;
+		m_Rs1 *= a;
+		// printf("New smaller  Rs0=%g, Rs1=%g\n", Rs0, Rs1);////////////////t
+	    }else if(m_Rs1/pow(kRs, 1.5) <= this->m_Rs){
+		double b = 0.95*m_Rs1/m_Rs0;
+		m_Rs0 *= b;
+		m_Rs1 *= b;
+		// printf("New larger Rs0=%g, Rs1=%g\n", Rs0, Rs1);////////////////t
+		// }else if(eta <= eta0+1.5*d){
+		//   double eee =eta0;
+		//   eta0 *= 0.1;
+		//   eta1 = eee +d;
+		//   printf("New smaller  eta0=%g, eta1=%g\n", eta0, eta1);
+	    }else if(m_eta1-1.5*dEta <= this->m_eta){
+		double eee = m_eta0;
+		m_eta0 = m_eta1-dEta;
+		m_eta1 = 2.0*m_eta1 -eee -dEta;
+		// printf("New larger  eta0=%g, eta1=%g\n", eta0, eta1);///////////////t
+	    }else{  // 端っこでなかったら、終わる
+		break;
 	    }
 	}
+  
+	// パラメータRh, I0, Iphの値設定
+	// Rh = calcRh(this->Rs, this->eta);///////////////////t GPUで計算したRhを使うことにする。非常に微妙で、わずかの数値誤差で大きく変わることがある ex. G=770.4000244, T=57.41066742
+	// m_I0 = calcI0(this->m_Rs, this->m_eta, m_Rh);
+	// m_Iph = calcIph(this->m_Rs, this->m_eta, m_Rh);
+	m_I0 = calcI0(m_Rs, m_eta, m_Rh);
+	m_Iph = calcIph(m_Rs, m_eta, m_Rh);
 
-	// // 2024.3.20
-	// // ひとつもRh>=0のような条件を満たすRs, etaがなかったら、探索を終わる
-	// if(Emin == INFINITY){
-	//     // std::cout << "AdaptiveModel::calc()$$ no suitable Rs and eta, Emin==INFINITY\n";///////////////////t
-	//     break;
-	// }
-	
-	// 最適値が範囲の端から2番目以内だったら、探索範囲を取り直して再探索。
-	if(this->m_Rs <= m_Rs0*pow(kRs, 1.5)){
-	    double a = 1.05*m_Rs0/m_Rs1;
-	    m_Rs0 *= a;
-	    m_Rs1 *= a;
-	    // printf("New smaller  Rs0=%g, Rs1=%g\n", Rs0, Rs1);////////////////t
-	}else if(m_Rs1/pow(kRs, 1.5) <= this->m_Rs){
-	    double b = 0.95*m_Rs1/m_Rs0;
-	    m_Rs0 *= b;
-	    m_Rs1 *= b;
-	    // printf("New larger Rs0=%g, Rs1=%g\n", Rs0, Rs1);////////////////t
-	    // }else if(eta <= eta0+1.5*d){
-	    //   double eee =eta0;
-	    //   eta0 *= 0.1;
-	    //   eta1 = eee +d;
-	    //   printf("New smaller  eta0=%g, eta1=%g\n", eta0, eta1);
-	}else if(m_eta1-1.5*dEta <= this->m_eta){
-	    double eee = m_eta0;
-	    m_eta0 = m_eta1-dEta;
-	    m_eta1 = 2.0*m_eta1 -eee -dEta;
-	    // printf("New larger  eta0=%g, eta1=%g\n", eta0, eta1);///////////////t
-	}else{  // 端っこでなかったら、終わる
-	    break;
+	// mallocで確保したメモリの解放
+	free(Rs0nth);
+	free(eta0nth);
+	free(RsMinTh);
+	free(RhMinTh);/////////////////t
+	free(etaMinTh);
+	free(EminTh);
+
+	err = cudaFree(d_Rs0nth);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector Rs0nth (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
 	}
-    }
   
-    // パラメータRh, I0, Iphの値設定
-    // Rh = calcRh(this->Rs, this->eta);///////////////////t GPUで計算したRhを使うことにする。非常に微妙で、わずかの数値誤差で大きく変わることがある ex. G=770.4000244, T=57.41066742
-    // m_I0 = calcI0(this->m_Rs, this->m_eta, m_Rh);
-    // m_Iph = calcIph(this->m_Rs, this->m_eta, m_Rh);
-    m_I0 = calcI0(m_Rs, m_eta, m_Rh);
-    m_Iph = calcIph(m_Rs, m_eta, m_Rh);
-
-    // mallocで確保したメモリの解放
-    free(Rs0nth);
-    free(eta0nth);
-    free(RsMinTh);
-    free(RhMinTh);/////////////////t
-    free(etaMinTh);
-    free(EminTh);
-
-    err = cudaFree(d_Rs0nth);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector Rs0nth (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
+	err = cudaFree(d_eta0nth);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector eta0nth (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
   
-    err = cudaFree(d_eta0nth);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector eta0nth (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
+	err = cudaFree(d_RsMin);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector RsMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
   
-    err = cudaFree(d_RsMin);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector RsMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
+	err = cudaFree(d_RhMin);/////////////////////t
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector RhMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
   
-    err = cudaFree(d_RhMin);/////////////////////t
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector RhMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
+	err = cudaFree(d_etaMin);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector etaMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
   
-    err = cudaFree(d_etaMin);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector etaMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-  
-    err = cudaFree(d_Emin); 
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector Emin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
+	err = cudaFree(d_Emin); 
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector Emin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
     }
 #endif
     

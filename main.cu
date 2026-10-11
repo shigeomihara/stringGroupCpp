@@ -22,6 +22,7 @@
 
 /**************************************************/
 void stringGroupParamEstim(GlobalConstants gc);
+void stringGroupParamEstim2(GlobalConstants gc);
 
 /*****************************   ***************************************/
 int main(void){
@@ -55,15 +56,15 @@ int main(void){
     auto start = std::chrono::system_clock::now();
     std::cout << std::setprecision(20); //////////////////t
 
-    // double G {1000.0};
-    // double Tdeg {25.0};
+    // PCSData pd(gc);
+    // SimPCSData spd;
+    // // pd.readFile("Dat/GTIVTime201905.dat");
+    // pd.readFile("Dat/GTIVTime201905G03.dat");
+    // pd.makeSimPCSData05(spd);
+    // // pd.makeSimPCSData05Iph(spd);
 
-    PCSData pd(gc);
-    SimPCSData spd;
-    // pd.readFile("Dat/GTIVTime201905.dat");
-    pd.readFile("Dat/GTIVTime201905G03.dat");
-    pd.makeSimPCSData05(spd);
-    // pd.makeSimPCSData05Iph(spd);
+    // stringGroupParamEstim2(gc);
+    AdaptiveModel am(gc, 1000.0, 25.0);
 
     // gc.haveGPU = false;///////////////////////////
     
@@ -141,6 +142,35 @@ int main(void){
     auto end = std::chrono::system_clock::now();
     auto nanosec = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count();
     std::cout << "# Execution time of AdaptiveModel.calc()= " << nanosec/1.0E9 << " sec" << std::endl;
+}
+
+/************** 2026.10.11-- ******************/
+void stringGroupParamEstim2(GlobalConstants gc){
+    PCSData pd(gc);
+    pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");
+    // pd.averageGTIV();
+
+    double G[GlobalConstants::K], T[GlobalConstants::K];
+    double I[GlobalConstants::K], V[GlobalConstants::K];
+    std::string Time[GlobalConstants::K];
+
+    StringGroup sg {gc, 1000.0, 25.0};
+
+    for(int i=0; i<=pd.G.size()-gc.K; i+=gc.K){
+	for(int k=0; k<gc.K; k++){
+	    G[k] = pd.G[i+k];
+	    T[k] = pd.T[i+k];
+	    I[k] = pd.I[i+k];
+	    V[k] = pd.V[i+k];
+	    Time[k] = pd.Time[i+k];
+	    
+	    printf("k=%d, %s G=%g, T=%g, I=%g, V=%g\n", k, Time[k].c_str(), G[k], T[k], I[k], V[k]);//////////t
+	}
+	
+	sg.paramEstim(G, T, I, V, Time);
+	
+	break;////////////////////t
+    }	
 }
 
 /**************  ******************/

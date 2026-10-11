@@ -32,6 +32,7 @@ private:
     
     void readFile();
     void readFile(std::string fileName);
+    void readFileSim(std::string fileName);
     
     void averageGTIV();
     void makeSimPCSDataPmax(SimPCSData &sd);

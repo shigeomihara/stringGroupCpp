@@ -19,6 +19,47 @@ void PCSData::readFile(){
     readFile("Dat/GTIVTime.dat");
 }
 
+/*************** 2026.10.11-- ***************************/
+void PCSData::readFileSim(std::string fileName){
+    std::fstream ifs {fileName, std::ios_base::in};
+    if(!ifs){
+	std::cout << "couldn't open '" << fileName << "' for reading" << std::endl;
+	exit(-1);
+    }
+
+    std::string str;
+
+    // read pass one line
+    std::getline(ifs, str);
+    std::cout << str << std::endl;
+    
+    while(std::getline(ifs, str)){
+	// std::cout << str << std::endl;
+
+	std::vector<std::string> vStr = splitString(str, ',');
+
+	for(int i=0; i<vStr.size(); i++){
+	    // std::cout << vStr[i] << " ";
+	    double Ii = stod(vStr[5]);
+	    double Vi = stod(vStr[6]);
+	    if(Ii < 10.0 || Vi < 10.0) continue;  // I==0, V==0‚Ì‚±‚Æ‚ª‚ ‚é‚Ì‚ÅA“Ç‚Ý”ò‚Î‚·
+
+	    // if(i==1) G.push_back(stod(vStr[i])*1000.0);   // W/m^2’PˆÊ‚É‚·‚é
+	    if(i==1) G.push_back(stod(vStr[i]));
+	    else if(i==2) T.push_back(stod(vStr[i])); 
+	    else if(i==5) I.push_back(Ii); 
+	    else if(i==6) V.push_back(Vi); 
+	    else if(i==0) Time.push_back(vStr[i]); 
+	}
+	// std::cout << std::endl;
+    }
+
+    // for(int i=0; i<G.size(); i++){
+    // 	std::cout << i << " " << G[i] << " " << T[i] << " " << I[i] << " " << V[i] << " " << Time[i] << std::endl;
+    // }
+}
+
+/***************************************************/
 void PCSData::readFile(std::string fileName){
     std::fstream ifs {fileName, std::ios_base::in};
     if(!ifs){
