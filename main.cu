@@ -64,7 +64,8 @@ int main(void){
     // // pd.makeSimPCSData05Iph(spd);
 
     // stringGroupParamEstim2(gc);
-    AdaptiveModel am(gc, 1000.0, 25.0);
+    AdaptiveModel am(gc, 1000.0, 25.0, true);
+    am.calc();
 
     // gc.haveGPU = false;///////////////////////////
     

@@ -36,17 +36,20 @@ AdaptiveModel::AdaptiveModel(double IscSTCC, double VocSTCC, double ImpSTCC, dou
 /** GlobalConstantsを与えるコンストラクタ  ******************************************
  *  出力：IscSTC, VocSTC, ImpSTC, VmpSTC, alphaSc, betaOc, gammaMp, G, T, Ns
  *  関数呼び出し：setVars, calcA0B0     ********************************************/
-AdaptiveModel::AdaptiveModel(GlobalConstants &gc, double GG, double TT)
+AdaptiveModel::AdaptiveModel(GlobalConstants &gc, double GG, double TT,
+			     bool STCParamsChanged)
     :m_IscSTC{gc.IscSTC}, m_VocSTC{gc.VocSTC/gc.Ns},
      m_ImpSTC{gc.ImpSTC}, m_VmpSTC{gc.VmpSTC/gc.Ns},
      m_alphaSc{gc.alphaSc}, m_betaOc{gc.betaOc}, m_gammaMp{gc.gammaMp},
-     m_G{GG}, m_T{TT}, m_Ns{1}, m_gc{gc}{  // modified m_Ns{gc.Ns_sub}, Mar.4,2026
+     m_G{GG}, m_T{TT}, m_Ns{1}, m_gc{gc},
+     m_STCParamsChanged{STCParamsChanged}{  // modified m_Ns{gc.Ns_sub}, Mar.4,2026
 
     setVars();
     calcA0B0();
     calc();    // added Mar.4, 2026
-    m_Imax = getI(m_Vmin);
-    m_Vmax = getV(m_Imin);
+    // m_Imax = getI(m_Vmin);  ////////////////////////////tmp
+    // m_Vmax = getV(m_Imin);
+    
     // testVars(33.4);////////////////////////
 }
 
@@ -160,16 +163,29 @@ void AdaptiveModel::calcA0B0(){
     exit(0);
 }
 
+/******************* 2026.10.12-- **********************************/
+double AdaptiveModel::calcLM(){
+    std::cout << "calcLM" << std::endl;//////////////////t
+    printf("m_Voc=%g, m_A0=%g, m_B0=%g, m_Rs=%g\n", m_Voc, m_A0, m_B0, m_Rs);////////////////t
+
+    double E = calcE(m_Rs, m_eta);
+    printf("E=%g\n", E);
+    return 0.0; 
+}
+    
 /** 現在のVoc, Isc, Vmp, Impに対するRs, eta, Rh, I0, Iphをメッシュサーチして設定する 
  *  入力：numThreads, numThreadsRs, numThreadsEta, Rs0, Rs1, NRs, eta0, eta1, NEta
  *  出力：Rs0, Rs1, eta0, eta1, Rs, eta, Rh, I0, Iph
  *  関数呼び出し：Search, calcI0, calcIph
  *  戻り値：Emin (==INFINITYのときは、Rs, etaなどが設定されていないので注意）   *****/
 double AdaptiveModel::calc(){
+    if(m_STCParamsChanged && m_Rs>=0.0){
+	return calcLM();
+    }
+    
     SearchResult sr0 {m_Isc, m_Voc, m_Imp, m_Vmp, m_Tkel, m_absA0, m_absB0,
 		      m_Rs, m_eta, m_Rh, m_I0, m_Iph, 0.0};
     int iSr {m_gc.sh.haveSearchResult(sr0)};
-    iSr = -1; ///////////////////////////tmp
     if(iSr >= 0){
 	m_Rs = m_gc.sh.m_vsr[iSr].Rs;
 	m_eta = m_gc.sh.m_vsr[iSr].eta;
@@ -916,6 +932,140 @@ double AdaptiveModel::calcNoGPU(){
     printf("Emin=%g, Rs=%g, eta=%g, Rh=%g, I0=%g, Iph=%g\n", Emin, m_Rs, m_eta, m_Rh, m_I0, m_Iph);/////////////////////t
     
     return Emin;
+}
+
+/***************************** 2026.10.12-- *************************/
+double AdaptiveModel::calcE(double Rs, double eta){
+    double TInv = 1.0/m_Tkel;
+    
+    double VocMiVmp = m_Voc-m_Vmp;
+    double IscMiImp = m_Isc-m_Imp;
+  
+    double RsIsc = Rs*m_Isc;
+    double RsImp = Rs*m_Imp;
+    double VmpPluRsImp = m_Vmp +RsImp;
+    double RsImpMiVmp = RsImp-m_Vmp;
+    
+    double etaNsVt = eta*m_NsVt;
+    double x =m_Voc/etaNsVt, y=RsIsc/etaNsVt, z=VmpPluRsImp/etaNsVt;
+
+    if(x==y) return std::numeric_limits<double>::infinity();
+	    
+    // Rhの計算
+    double Rh;
+    double ZpXY = NAN;  // Z/(X-Y)もついでにここで計算しておく
+    double eyx, ezx, exy, ezy, exz, eyz;
+	    
+    if(x>=y && x>=z){
+	eyx = std::exp(y-x);
+	ezx = std::exp(z-x);
+	Rh = ( ( m_Vmp +VocMiVmp*eyx -m_Voc*ezx )
+	       / ( IscMiImp +m_Imp*eyx -m_Isc*ezx ) ) - Rs;
+	ZpXY = ezx/(1.0-eyx);
+    }else if(y >= z){
+	exy = std::exp(x-y);
+	ezy = std::exp(z-y);
+	Rh = ( ( m_Vmp*exy +VocMiVmp -m_Voc*ezy )
+	       / ( IscMiImp*exy +m_Imp -m_Isc*ezy ) ) - Rs;
+	ZpXY = ezy/(exy-1.0);
+    }else{
+	exz = std::exp(x-z);
+	eyz = std::exp(y-z);
+	Rh = ( ( m_Vmp*exz +VocMiVmp*eyz -m_Voc )
+	       / ( IscMiImp*exz +m_Imp*eyz -m_Isc ) ) - Rs;
+    }
+    
+    if(std::isnan(Rh) || Rh<=0.0)
+	return std::numeric_limits<double>::infinity();
+
+    // I0の計算
+    // double I01 = (1.0 +xRs/Rh )*m_Isc -m_Voc/Rh;
+    double I01 = ( (Rh+Rs)*m_Isc -m_Voc )/Rh;
+      
+    double oneXY, XoneXY, XpXY;
+    if(x>=y){
+	double eyx1 = std::exp(y-x);
+	double emx = std::exp(-x);
+	oneXY = emx/(1.0-eyx1);
+	XoneXY = (1.0-emx)/(1.0-eyx1);
+	XpXY = 1.0/(1.0-eyx1);
+    }else{
+	double exy1 = std::exp(x-y);
+	double emy = std::exp(-y);
+	oneXY = emy/(exy1-1.0);
+	XoneXY = (exy1-emy)/(exy1-1.0);
+	XpXY = exy1/(exy1-1.0);
+    }
+      
+    double I0 = I01*oneXY;
+    if(!std::isfinite(I0) || I0<0.0)
+	return std::numeric_limits<double>::infinity();
+
+    // Iphの計算
+    double Iph = I01*XoneXY +m_Voc/Rh;
+      
+    if(!std::isfinite(Iph) || Iph<0.0)
+	return std::numeric_limits<double>::infinity();
+
+    // absAの計算
+    double P0 = RsImpMiVmp/etaNsVt*I01;
+    double P1 = (RsImpMiVmp +Rh*m_Imp )/Rh;
+
+    double absA, lnZpXY, XYpZ;
+    if( !std::isnan(ZpXY) ){  // zが最大、ではなかったら
+	absA = std::abs(P0*ZpXY+P1);  // ZpXYは上のRhの計算のところで計算している、ｚが最大でない場合
+    }else{  // ｚが最大の場合
+	if(x > y) lnZpXY = -std::log(exz-eyz);
+	else lnZpXY = -std::log(eyz-exz);
+
+	XYpZ = exz-eyz;
+
+	double Atilder = lnZpXY +std::log( std::abs(P0 +P1*XYpZ) +std::abs(XYpZ) );
+	absA = std::exp(Atilder)-1.0;
+    }
+	    
+    if(!std::isfinite(absA)) return std::numeric_limits<double>::infinity();
+      
+    // I0dの計算
+    double W0 = (m_W01 +m_W02/eta)/eta;
+    double I0d = W0*I0;
+    double etadPerEta = m_etad/eta;
+
+    // Rsdの計算
+    double Rsd = (etadPerEta -m_alphaSc +TInv)*Rs +etaNsVt/m_Isc*(std::exp(-y)-1.0)*W0;
+
+    // Rhdの計算
+    double W1 = Rh*( m_Voc/etaNsVt*( etadPerEta -m_betaOc +TInv ) -W0 );
+    double W2 = (Rsd +(Rs+Rh)*m_alphaSc)*m_Isc +Rh*I0d -m_betaOc*m_Voc;  // +Rh*I0d modified 2024.1.21
+
+    double RhdPerRh = ( I01*XpXY*W1 +W2 )/(RsIsc-m_Voc);
+
+    // Iphdの計算
+    // double Iphd = Isc/Rh*Rsd -RsIsc/(Rh*Rh)*Rhd +(1.0+xRs/Rh)*alphaSc*Isc;
+    double Iphd = (Rsd -Rs*RhdPerRh +(Rs+Rh)*m_alphaSc)*m_Isc/Rh;
+
+    // absBの計算
+    double xxx = -m_Imp*Rsd -m_gammaMp*m_Vmp;
+    double W3 = I01*( ( xxx +VmpPluRsImp*(etadPerEta +TInv) )/etaNsVt -W0 );
+    double W4 = ( xxx +VmpPluRsImp*RhdPerRh )/Rh +Iphd +I0d;
+
+    double absB;
+    if( !std::isnan(ZpXY) ){  // zが最大、ではなかったら
+	absB = std::abs(ZpXY*W3 +W4);   // ZpXYはｚが最大でないときは、Rhの計算のところで求めている
+    }else{  // ｚが最大のとき、このときlnZpXY, XYpZはAtilderのところで計算している
+	double Btilder = lnZpXY +std::log( std::abs(W3+W4*XYpZ)+std::abs(XYpZ) );
+	absB = std::exp(Btilder)-1.0;
+    }
+
+    if(!std::isfinite(absB)) return std::numeric_limits<double>::infinity();
+    
+    // Eの計算
+    double E = absA/m_absA0 +absB/m_absB0;
+    // this->m_Rs = Rs;
+    // this->m_eta = eta;
+    // this->m_Rh = Rh;
+    
+    return E;
 }
 
 /** [Rs0, Rs1]x[eta0, eta1]の範囲内でEを最小にするRs, etaを探索、設定してEminを返す **
