@@ -90,7 +90,7 @@ private:
     double m_A0, m_B0, m_eta00, m_absA0, m_absB0;  // eta00はA0, B0の計算に使われたetaの値、1.0, 1,1, 1,2, 1,3のいずれか
 
     // Five parameters of single diode model
-    double m_Rs, m_eta, m_Rh, m_I0, m_Iph;
+    double m_Rs=-1.0, m_eta, m_Rh, m_I0, m_Iph;
 
     // コンストラクタ、calcPCS()から呼び出される
     void setVars();
@@ -124,13 +124,18 @@ public:
     // Constructors G (W/m^2), T (degC)
     AdaptiveModel(double IscSTC, double VocSTC, double ImpSTC, double VmpSTC, double alphaSc,
 		  double betaOc, double gammaMp, double G, double T, int Ns, GlobalConstants gc);
-    AdaptiveModel(GlobalConstants &gc, double G, double T);
+    //AdaptiveModel(GlobalConstants &gc, double G, double T);
     AdaptiveModel(GlobalConstants gc);  // Constructor doing nothing
+    AdaptiveModel(GlobalConstants &gc, double GG, double TT,
+		  bool STCParamsChanged=false);
 
     double calc();
     // double calcRh(double Rs, double eta);//////////////////////t
 
     double calcNoGPU();
+    bool m_STCParamsChanged;
+    double calcLM();
+    double calcE(double Rs, double eta);
 
     double getRs() const{ return m_Rs; }
     double getEta() const{ return m_eta; }
