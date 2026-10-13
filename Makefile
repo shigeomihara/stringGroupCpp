@@ -21,15 +21,15 @@ OPTIONS= -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professiona
 # MSI PC
 #OPTIONS= -ccbin "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.50.35717\bin\Hostx86\x64" -Xcompiler /Zc:preprocessor -Xcompiler "/wd 4819" --std c++17 -diag-suppress 221
 
-# for Ubuntu
-# 1. Do first "make cp"
-CC=g++
-OPTIONS= -D UBUNTU
-EXE=./main
-EXT=cpp
-OBJ=o
+# # for Ubuntu
+# # 1. Do first "make cp"
+# CC=g++
+# OPTIONS= -D UBUNTU
+# EXE=./main
+# EXT=cpp
+# OBJ=o
 
-SRCS=main.${EXT} PCSData.${EXT} LambertWhara.${EXT} adaptiveModel.${EXT} substring.${EXT} stringModel.${EXT} stringGroup.${EXT} globalConstants.${EXT} searchHistoryAM.${EXT} myCalendar.${EXT}
+SRCS=main.${EXT} PCSData.${EXT} LambertWhara.${EXT} adaptiveModel.${EXT} substring.${EXT} stringModel.${EXT} stringGroup.${EXT} globalConstants.${EXT} searchHistoryAM.${EXT} myCalendar.${EXT} ludcmp.${EXT}
 OBJS=$(SRCS:.${EXT}=.${OBJ})
 DEPS=$(SRCS:.${EXT}=.d)
 

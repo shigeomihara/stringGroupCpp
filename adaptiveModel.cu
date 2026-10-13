@@ -5,6 +5,7 @@
 #include "adaptiveModel.hh"
 #include "LambertWhara.hh"
 #include "globalConstants.hh"
+#include "ludcmp.h"
 #include <iostream>
 #include <cmath>
 #include <cstdio>
@@ -163,14 +164,90 @@ void AdaptiveModel::calcA0B0(){
     exit(0);
 }
 
+/******************** 2026.10.13-- ********************************/
+void AdaptiveModel::getJ(const double Rs, const double eta, double J[2], double &E){
+    double deltaRs {Rs*1.0e-4>1.0e-6? Rs*1.0e-4: 1.0e-8};
+    double deltaEta {eta*1.0e-4>1.0e-6? eta*1.0e-4: 1.0e-6};
+
+    E = calcE(Rs, eta);
+    // printf("Rs+deltaRs=%g, calcE(Rs+deltaRs, eta)=%g\n", Rs+deltaRs, calcE(Rs+deltaRs, eta));
+    // printf("eta+deltaEta=%g, calcE(Rs, eta+deltaEta)=%g\n",
+    // eta+deltaEta, calcE(Rs, eta+deltaEta));
+    J[0] = (calcE(Rs+deltaRs, eta) - E)/deltaRs; 
+    J[1] = (calcE(Rs, eta+deltaEta) - E)/deltaEta; 
+
+    // printf("deltaRs=%g, deltaEta=%g, E=%g, J[0]=%g, J[1]=%g\n",
+    //        deltaRs, deltaEta, E, J[0], J[1]);
+}
+
 /******************* 2026.10.12-- **********************************/
 double AdaptiveModel::calcLM(){
-    std::cout << "calcLM" << std::endl;//////////////////t
-    printf("m_Voc=%g, m_A0=%g, m_B0=%g, m_Rs=%g\n", m_Voc, m_A0, m_B0, m_Rs);////////////////t
+    // std::cout << "calcLM" << std::endl;//////////////////t
+    // printf("m_Voc=%g, m_A0=%g, m_B0=%g, m_Rs=%g, m_eta=%g\n",
+    //        m_Voc, m_A0, m_B0, m_Rs, m_eta);////////////////t
 
-    double E = calcE(m_Rs, m_eta);
-    printf("E=%g\n", E);
-    return 0.0; 
+    double J[2], E;
+    getJ(m_Rs, m_eta, J, E);
+    // printf("dEdRs=%g, dEdeta=%g, E=%g\n", J[0], J[1], E);//////////////////////////t
+
+    double lambda {(J[0]*J[0]+J[1]*J[1])*0.5e-3};
+    // printf("lambda=%g\n", lambda);////////////////////////
+
+    bool first {true};
+    while(true){
+        if(!first) getJ(m_Rs, m_eta, J, E);
+
+        double Delta[2];
+        while(true){
+            double a[4];
+            a[0] = J[0]*J[0] + lambda;
+            a[1] = J[0]*J[1];
+            a[2] = a[1];
+            a[3] = J[1]*J[1] + lambda;
+
+            LUdcmp ludcmp(a, 2);
+
+            double b[2];
+            b[0] = -J[0]*E;
+            b[1] = -J[1]*E;
+            ludcmp.solve(b, Delta, 2);
+            // for(int i=0; i<2; i++)
+            //     printf("Delta[%d]=%g r=%g, l=%g\n", i, Delta[i],
+            //            a[0+i*2]*Delta[0]+a[1+i*2]*Delta[1], b[i]);///////////////
+
+            printf("lambda=%g, E=%g\n",
+                   lambda, calcE(m_Rs+Delta[0], m_eta+Delta[1]));///////
+            if(calcE(m_Rs+Delta[0], m_eta+Delta[1]) < E && m_Rs+Delta[0]>=0.0
+               && m_eta+Delta[1]>=0.0){
+                lambda *= 0.1;
+                break;
+            }else{
+                lambda *= 10.0;
+            }
+
+        }
+            
+        m_Rs += Delta[0];
+        m_eta += Delta[1];
+
+        // printf("Rs=%g, eta=%g, DeltaRs=%g, DeltaEta=%g, lambda=%g, E=%g\n",
+        //        m_Rs, m_eta, Delta[0], Delta[1], lambda, calcE(m_Rs, m_eta));/////////////
+        if(Delta[0]*Delta[0]+Delta[1]*Delta[1] < 1.0e-5*(m_Rs*m_Rs+m_eta*m_eta)){
+            break;
+        }
+        
+        first = false;
+    }
+    
+    // パラメータRh, I0, Iphの値設定
+    m_Rh = calcRh(m_Rs, m_eta);
+    m_I0 = calcI0(m_Rs, m_eta, m_Rh);
+    m_Iph = calcIph(m_Rs, m_eta, m_Rh);
+    E = calcE(m_Rs, m_eta);
+
+    printf("AdaptiveModel::calcLM(): Emin=%g, Rs=%g, eta=%g, Rh=%g, I0=%g, Iph=%g\n",
+           E, m_Rs, m_eta, m_Rh, m_I0, m_Iph);/////////////////////t
+    return E; 
 }
     
 /** 現在のVoc, Isc, Vmp, Impに対するRs, eta, Rh, I0, Iphをメッシュサーチして設定する 
@@ -180,6 +257,7 @@ double AdaptiveModel::calcLM(){
  *  戻り値：Emin (==INFINITYのときは、Rs, etaなどが設定されていないので注意）   *****/
 double AdaptiveModel::calc(){
     if(m_STCParamsChanged && m_Rs>=0.0){
+        m_Rs = 1.0e-10;  m_eta=1.6; /////////////////////////t
 	return calcLM();
     }
     
@@ -949,7 +1027,10 @@ double AdaptiveModel::calcE(double Rs, double eta){
     double etaNsVt = eta*m_NsVt;
     double x =m_Voc/etaNsVt, y=RsIsc/etaNsVt, z=VmpPluRsImp/etaNsVt;
 
-    if(x==y) return std::numeric_limits<double>::infinity();
+    if(x==y){
+        printf("AdaptiveModel::calcE x==y ---> E=infinity\n");
+        return std::numeric_limits<double>::infinity();
+    }
 	    
     // Rhの計算
     double Rh;
@@ -975,9 +1056,12 @@ double AdaptiveModel::calcE(double Rs, double eta){
 	       / ( IscMiImp*exz +m_Imp*eyz -m_Isc ) ) - Rs;
     }
     
-    if(std::isnan(Rh) || Rh<=0.0)
-	return std::numeric_limits<double>::infinity();
-
+    if(std::isnan(Rh) || Rh<=0.0){
+        printf("AdaptiveModel::calcE, std::isnan(Rh) || Rh<=0.0 ---> E=infinity, Rh=%g\n",
+               Rh);
+	// return std::numeric_limits<double>::infinity();
+    }
+        
     // I0の計算
     // double I01 = (1.0 +xRs/Rh )*m_Isc -m_Voc/Rh;
     double I01 = ( (Rh+Rs)*m_Isc -m_Voc )/Rh;
@@ -998,14 +1082,18 @@ double AdaptiveModel::calcE(double Rs, double eta){
     }
       
     double I0 = I01*oneXY;
-    if(!std::isfinite(I0) || I0<0.0)
+    if(!std::isfinite(I0) || I0<0.0){
+        printf("AdaptiveModel::calcE !std::isfinite(I0) || I0<0.0 ---> E=infinity\n");
 	return std::numeric_limits<double>::infinity();
+    }
 
     // Iphの計算
     double Iph = I01*XoneXY +m_Voc/Rh;
       
-    if(!std::isfinite(Iph) || Iph<0.0)
+    if(!std::isfinite(Iph) || Iph<0.0){
+        printf("AdaptiveModel::calcE !std::isfinite(Iph) || Iph<0.0 ---> E=infinity\n");
 	return std::numeric_limits<double>::infinity();
+    }
 
     // absAの計算
     double P0 = RsImpMiVmp/etaNsVt*I01;
@@ -1024,7 +1112,10 @@ double AdaptiveModel::calcE(double Rs, double eta){
 	absA = std::exp(Atilder)-1.0;
     }
 	    
-    if(!std::isfinite(absA)) return std::numeric_limits<double>::infinity();
+    if(!std::isfinite(absA)){
+        printf("AdaptiveModel::calcE !std::isfinite(absA) ---> E=infinity\n");
+        return std::numeric_limits<double>::infinity();
+    }
       
     // I0dの計算
     double W0 = (m_W01 +m_W02/eta)/eta;
@@ -1057,7 +1148,10 @@ double AdaptiveModel::calcE(double Rs, double eta){
 	absB = std::exp(Btilder)-1.0;
     }
 
-    if(!std::isfinite(absB)) return std::numeric_limits<double>::infinity();
+    if(!std::isfinite(absB)){
+        printf("AdaptiveModel::calcE !std::isfinite(absB) ---> E=infinity\n");
+        return std::numeric_limits<double>::infinity();
+    }
     
     // Eの計算
     double E = absA/m_absA0 +absB/m_absB0;

@@ -120,6 +120,8 @@ private:
     double m_Imax;
     double m_Vmax;
 
+    void getJ(const double Rs, const double eta, double J[2], double &E);
+
 public:
     // Constructors G (W/m^2), T (degC)
     AdaptiveModel(double IscSTC, double VocSTC, double ImpSTC, double VmpSTC, double alphaSc,
