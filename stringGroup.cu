@@ -24,6 +24,15 @@ StringGroup::StringGroup(GlobalConstants &gcc, double GG, double TT)
     m_Imax = getI(m_Vmin);
 }
 
+/*********************** 2026.10.14-- ************************************/
+void StringGroup::distSTCParams(){
+    printf("StringGroup::distSTCParams()\n");//////////////////////t
+    for(int sn=0; sn < m_gc.S; sn++){
+        StringModel sm(m_gc, m_G, m_T);
+        addSM(sm, 1);
+    }
+}
+
 /** Calculate stringGroup current I (A) for voltage V (V)    ************************
  *  “ü—ÍF m_Vmin, m_Vmax, m_Ib0sg, m_vsm
  *  ŠÖ”ŒÄ‚Ño‚µF m_smInit,getI, m_vsm[i].getI      *******************************/

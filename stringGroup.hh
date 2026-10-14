@@ -67,6 +67,8 @@ public:
     double getPmax(double &Vmp, double &Imp);
 
     void paramEstim(double G[], double T[], double I[], double V[], std::string Time[]);
+
+    void distSTCParams();
 };
 
 // class XX {

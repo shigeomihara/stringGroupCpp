@@ -48,8 +48,8 @@ AdaptiveModel::AdaptiveModel(GlobalConstants &gc, double GG, double TT,
     setVars();
     calcA0B0();
     calc();    // added Mar.4, 2026
-    // m_Imax = getI(m_Vmin);  ////////////////////////////tmp
-    // m_Vmax = getV(m_Imin);
+    m_Imax = getI(m_Vmin);
+    m_Vmax = getV(m_Imin);
     
     // testVars(33.4);////////////////////////
 }
@@ -60,6 +60,11 @@ AdaptiveModel::AdaptiveModel(GlobalConstants gc)
      m_ImpSTC{gc.ImpSTC}, m_VmpSTC{gc.VmpSTC/gc.Ns},
      m_alphaSc{gc.alphaSc}, m_betaOc{gc.betaOc}, m_gammaMp{gc.gammaMp},
      m_Ns{1}, m_gc{gc}{  // modified m_Ns{gc.Ns_sub}, Mar.4,2026
+}
+
+/*********************** 2026.10.14-- ************************************/
+void AdaptiveModel::changeSTCParams(){
+
 }
 
 /** クラスの変数たちを設定する。コンストラクタから呼び出される。  *******************
@@ -270,8 +275,8 @@ double AdaptiveModel::calc(){
 	m_Rh = m_gc.sh.m_vsr[iSr].Rh;
 	m_I0 = m_gc.sh.m_vsr[iSr].I0;
 	m_Iph = m_gc.sh.m_vsr[iSr].Iph;
-	printf("calc: haveSearchResult, Emin=%g\n",
-	       m_gc.sh.m_vsr[iSr].Emin);//////////////////////////
+	// printf("calc: haveSearchResult, Emin=%g\n",
+	//        m_gc.sh.m_vsr[iSr].Emin);//////////////////////////
 	return m_gc.sh.m_vsr[iSr].Emin;
     }
     

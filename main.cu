@@ -63,9 +63,9 @@ int main(void){
     // pd.makeSimPCSData05(spd);
     // // pd.makeSimPCSData05Iph(spd);
 
-    // stringGroupParamEstim2(gc);
-    AdaptiveModel am(gc, 1000.0, 25.0, true);
-    am.calc();
+    stringGroupParamEstim2(gc);
+    // AdaptiveModel am(gc, 1000.0, 25.0, true);
+    // am.calc();
 
     // gc.haveGPU = false;///////////////////////////
     
@@ -147,6 +147,10 @@ int main(void){
 
 /************** 2026.10.11-- ******************/
 void stringGroupParamEstim2(GlobalConstants gc){
+    StringGroup sg {gc, 1000.0, 25.0};
+    sg.distSTCParams();
+    exit(0);
+    
     PCSData pd(gc);
     pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");
     // pd.averageGTIV();
@@ -154,8 +158,6 @@ void stringGroupParamEstim2(GlobalConstants gc){
     double G[GlobalConstants::K], T[GlobalConstants::K];
     double I[GlobalConstants::K], V[GlobalConstants::K];
     std::string Time[GlobalConstants::K];
-
-    StringGroup sg {gc, 1000.0, 25.0};
 
     for(int i=0; i<=pd.G.size()-gc.K; i+=gc.K){
 	for(int k=0; k<gc.K; k++){

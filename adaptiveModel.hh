@@ -173,6 +173,8 @@ public:
     double getImax() const{ return m_Imax; }
     double getVmin() const{ return m_Vmin; }
     double getImin() const{ return m_Imin; }
+
+    void changeSTCParams();
 };
 
 // Kernel
