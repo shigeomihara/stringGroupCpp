@@ -5,6 +5,7 @@
 #include "globalConstants.hh"
 #include "stringModel.hh"
 #include "bisection.hh"
+#include <functional> ////////////////////////t
 
 /** Constructor    *****************************************************************
  *  GG (W/m^2), TT (degC)
@@ -30,6 +31,12 @@ StringModel::StringModel(GlobalConstants &gcc, double GG, double TT): m_gc{gcc},
 
     // // printf("vss_size=%d, L=%d\n", m_vss.size(), m_gc.L);////////////////////////////////
     // std::cout << "StringModel Vmin=" << m_Vmin << " Vmax=" << m_Vmax << std::endl;////////////
+}
+
+/******************** 2026.10.16-- ***********************************/
+void StringModel::distSTCParams(std::random_device::result_type &rd,
+                                double mean, double stdDev){
+
 }
 
 /** m_aVmin[], m_aVmax[], m_aIb0[], m_aIscSub[], m_aEtabVt[]‚ðƒZƒbƒg‚·‚é   **********

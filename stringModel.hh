@@ -8,6 +8,7 @@
 #include <vector>
 #include <cmath>
 #include <limits>
+#include <random>  // for default_random_engine
 #include "globalConstants.hh"
 #include "substring.hh"
 
@@ -19,7 +20,6 @@ private:
     double m_T;   // degC
 
     Substring m_ssInit;
-    std::vector<int> m_vssNum;
     int m_vssNumSum {0};
     
     double m_etabVt;
@@ -39,6 +39,8 @@ private:
     double m_aIk[GlobalConstants::K];  // Žž“_k‚É‘Î‚·‚éI, i.e. I_k
 public:
     std::vector<Substring> m_vss;
+    std::vector<int> m_vssNum;
+    
     // Constructor
     StringModel(GlobalConstants &gcc, double GG, double TT);
     
@@ -78,6 +80,7 @@ public:
     FiveParamsPlus get5paramsPlus(int l) const;
 
     void print(int l) const;
+    void distSTCParams(std::random_device::result_type &rd, double mean, double stdDev);
 };
 
 #endif
