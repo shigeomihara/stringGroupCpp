@@ -68,6 +68,8 @@ private:
     
     // このクラスのメインの状態変数、コンストラクタで設定される
     double m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC, m_alphaSc, m_betaOc, m_gammaMp, m_G, m_T;
+    bool m_STCParamsChanged;
+    
     int m_Ns;
 
     // 関数setVarsで設定される
@@ -94,6 +96,7 @@ private:
 
     // コンストラクタ、calcPCS()から呼び出される
     void setVars();
+    void setVarsSTC();
     void calcA0B0();
     void setVarsGetE();
   
@@ -135,7 +138,6 @@ public:
     // double calcRh(double Rs, double eta);//////////////////////t
 
     double calcNoGPU();
-    bool m_STCParamsChanged;
     double calcLM();
     double calcE(double Rs, double eta);
 
@@ -174,7 +176,7 @@ public:
     double getVmin() const{ return m_Vmin; }
     double getImin() const{ return m_Imin; }
 
-    void changeSTCParams();
+    void changeSTCParams(double r0, double r1, double r2, double r3);
 };
 
 // Kernel
