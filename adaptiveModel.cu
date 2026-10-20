@@ -63,8 +63,18 @@ AdaptiveModel::AdaptiveModel(GlobalConstants gc)
 }
 
 /*********************** 2026.10.14-- ************************************/
-void AdaptiveModel::changeSTCParams(){
+void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
+    m_IscSTC *= r0;
+    m_VocSTC *= r1;
+    m_ImpSTC *= r2;
+    m_VmpSTC *= r3;
+    m_STCParamsChanged = true;
 
+    setVarsSTC();
+    calcA0B0();
+    calc();
+    m_Imax = getI(m_Vmin);
+    m_Vmax = getV(m_Imin);
 }
 
 /** クラスの変数たちを設定する。コンストラクタから呼び出される。  *******************
@@ -91,6 +101,17 @@ void AdaptiveModel::setVars(){
     double Egd = -1.12488E-22*(m_Tkel*m_Tkel+2.0*m_Tkel*1108.0)/( (m_Tkel+1108.0)*(m_Tkel+1108.0) );
     m_W01 = 3.0/m_Tkel -Egd/kT +Eg/(kT*m_Tkel);
     m_W02 = (Eg/kT -3.0*std::log(m_Tkel))*m_etad;
+
+    m_Isc = m_IscSTC*m_GpGSTC*(1.0+m_alphaSc*m_TmTSTC);
+    m_Voc = m_VocSTC/(1.0-m_deltaOc*m_lnGpGSTC)*(1.0+m_betaOc*m_TmTSTC);
+    m_Vmp = m_VmpSTC*( 1.0/(1.0-m_deltaOc*m_lnGpGSTC) +m_betaOc*m_TmTSTC );
+    double Pmax = m_PmaxSTC*m_GpGSTC/(1.0-m_deltaMp*m_lnGpGSTC)*(1.0+m_gammaMp*m_TmTSTC);
+    m_Imp = Pmax/m_Vmp;
+}    
+
+/************************* 2026.10.18-- **************************************/
+void AdaptiveModel::setVarsSTC(){
+    m_PmaxSTC = m_ImpSTC*m_VmpSTC;
 
     m_Isc = m_IscSTC*m_GpGSTC*(1.0+m_alphaSc*m_TmTSTC);
     m_Voc = m_VocSTC/(1.0-m_deltaOc*m_lnGpGSTC)*(1.0+m_betaOc*m_TmTSTC);

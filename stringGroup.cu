@@ -28,7 +28,9 @@ StringGroup::StringGroup(GlobalConstants &gcc, double GG, double TT)
 /*********************** 2026.10.14-- ************************************/
 void StringGroup::distSTCParams(){
     printf("StringGroup::distSTCParams()\n");//////////////////////t
-    auto gen = std::bind(std::normal_distribution<double>{1.0, 0.01},
+    // auto gen = std::bind(std::normal_distribution<double>{1.0, 0.01},
+    //                      std::default_random_engine{});
+    auto gen = std::bind(std::normal_distribution<double>{1.0, 0.005},
                          std::default_random_engine{});
     // for(int i=0; i<10; i++){
     //     printf("%g\n", gen());
@@ -37,13 +39,20 @@ void StringGroup::distSTCParams(){
     for(int s=0; s < m_gc.S; s++){
         StringModel sm(m_gc, m_G, m_T);
         addSM(sm, 1);
+        printf("m_vsm[%d] num=%d\n", s, m_vsmNum[s]);//////////////////////
 
-        printf("m_vsm[%d] num=%d\n", s, m_vsmNum[s]);
         for(int l=0; l < m_gc.L; l++){
             Substring ss(m_gc, m_G, m_T);
             m_vsm[s].addSS(ss, 1);
+            printf("m_vsm[%d].m_vss[%d] num=%d\n", s, l, m_vsm[s].m_vssNum[l]);////////
 
-            printf("m_vsm[%d].m_vss[%d] num=%d\n", s, l, m_vsm[s].m_vssNum[l]);
+	    for(int c=0; c < m_gc.Ns_sub; c++){
+		AdaptiveModel am(m_gc, m_G, m_T);
+		am.changeSTCParams(gen(), gen(), gen(), gen());
+		m_vsm[s].m_vss[l].addAM(am, 1);
+		printf("m_vsm[%d].m_vss[%d].m_vam[%d] num=%d\n", s, l, c, m_vsm[s].m_vss[l].m_vamNum[c]);////////
+	    }
+	    exit(0);////////////////////////t
         }
     }
 }

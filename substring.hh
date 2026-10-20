@@ -25,7 +25,6 @@ class Substring{
 private:
     GlobalConstants &m_gc;
     AdaptiveModel m_amInit;
-    std::vector<int> m_vamNum;
     int m_vamNumSum {0};
     
     // コンストラクタでセットされる
@@ -60,6 +59,7 @@ private:
     double m_VbMin;
 public:
     std::vector<AdaptiveModel> m_vam;
+    std::vector<int> m_vamNum;
     // Constructor
     Substring(GlobalConstants &gcc, double GG, double TT);
     
