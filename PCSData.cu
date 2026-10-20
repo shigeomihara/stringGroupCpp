@@ -234,7 +234,8 @@ void PCSData::makeSimPCSData05Iph(SimPCSData &sd){
     StringGroup sg(m_gc, 1000.0, 25.0);
     AdaptiveModel* p_am = nullptr;
 
-    deployFaultCells(sg, 0.5, 1000.0, 25.0);
+    // deployFaultCells(sg, 0.5, 1000.0, 25.0);
+    deployFaultCells(sg, 0.1, 1000.0, 25.0);
     p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
 
     stringstream ss {};
@@ -374,8 +375,13 @@ void PCSData::makeSimPCSData05(SimPCSData &sd){
     ss << "Time, Gmeas, Tmeas, Imeas, Vmeas, ImpSim, VmpSim, Rs, RsSim, mul\n";
     fs << ss.str();
     std::cout << ss.str();
+
+    // tmporary
+    int nTest {9301};
+    int nTest1 {11000};
     
     double mul {1.0};
+    bool ikkai {false};
     for(int n=0; n<G.size(); n++){
 	// printf("%s\n", Time[n].c_str());///////////////////////////
 	sg.setGT(G[n], T[n]);
@@ -396,8 +402,21 @@ void PCSData::makeSimPCSData05(SimPCSData &sd){
 	fs << ss.str();
 	std::cout << ss.str();
 
-	mul *= rate;
-        if (mul >= 100) mul = 1.0; 
+        if(n<nTest){
+            mul *= rate;
+            if (mul >= 100) mul = 1.0;
+        }else{
+            if(n>=nTest1 && ikkai==false){
+                mul *= rate;
+                if (mul >= 100){
+                    mul = 1.0;
+                    ikkai = true;
+                }
+            }else{
+                mul = 1.0;
+            }
+        }
+            
 	// if(n==10) break; //////////////////////////////////
     }
     fs.close();
