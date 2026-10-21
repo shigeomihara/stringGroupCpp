@@ -64,10 +64,15 @@ AdaptiveModel::AdaptiveModel(GlobalConstants gc)
 
 /*********************** 2026.10.14-- ************************************/
 void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
+    if((r0>1.0 && r2<1.0) || (r0<1.0 && r2>1.0)) r2 = 2.0 - r2;
+    if((r1>1.0 && r3<1.0) || (r1<1.0 && r3>1.0)) r3 = 2.0 - r3;
     m_IscSTC *= r0;
     m_VocSTC *= r1;
     m_ImpSTC *= r2;
     m_VmpSTC *= r3;
+    printf("r0=%g, r1=%g, r2=%g, r3=%g\n", r0, r1, r2, r3);///////////////t
+    printf("IscSTC=%g, VocSTC=%g, ImpSTC=%g, VmpSTC=%g\n",
+           m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC);//////////////////////t
     m_STCParamsChanged = true;
 
     setVarsSTC();

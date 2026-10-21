@@ -56,14 +56,15 @@ int main(void){
     auto start = std::chrono::system_clock::now();
     std::cout << std::setprecision(20); //////////////////t
 
-    PCSData pd(gc);
-    SimPCSData spd;
-    // pd.readFile("Dat/GTIVTime201905.dat");
-    pd.readFile("Dat/GTIVTime201905G03.dat");
-    pd.makeSimPCSData05(spd);
-    // pd.makeSimPCSData05Iph(spd);
+    // PCSData pd(gc);
+    // SimPCSData spd;
+    // // pd.readFile("Dat/GTIVTime201905.dat");
+    // pd.readFile("Dat/GTIVTime201905G03.dat");
+    // pd.makeSimPCSData05(spd);
+    // // pd.makeSimPCSData05Iph(spd);
 
-    // stringGroupParamEstim2(gc);
+    stringGroupParamEstim2(gc);
+    
     // AdaptiveModel am(gc, 1000.0, 25.0, true);
     // am.calc();
 

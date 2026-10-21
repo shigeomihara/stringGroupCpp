@@ -30,7 +30,9 @@ void StringGroup::distSTCParams(){
     printf("StringGroup::distSTCParams()\n");//////////////////////t
     // auto gen = std::bind(std::normal_distribution<double>{1.0, 0.01},
     //                      std::default_random_engine{});
-    auto gen = std::bind(std::normal_distribution<double>{1.0, 0.005},
+    // auto gen = std::bind(std::normal_distribution<double>{1.0, 0.005},
+    //                      std::default_random_engine{});
+    auto gen = std::bind(std::uniform_real_distribution<double>{0.99, 1.01},
                          std::default_random_engine{});
     // for(int i=0; i<10; i++){
     //     printf("%g\n", gen());
@@ -52,7 +54,7 @@ void StringGroup::distSTCParams(){
 		m_vsm[s].m_vss[l].addAM(am, 1);
 		printf("m_vsm[%d].m_vss[%d].m_vam[%d] num=%d\n", s, l, c, m_vsm[s].m_vss[l].m_vamNum[c]);////////
 	    }
-	    exit(0);////////////////////////t
+	    // exit(0);////////////////////////t
         }
     }
 }
