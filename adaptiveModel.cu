@@ -64,12 +64,14 @@ AdaptiveModel::AdaptiveModel(GlobalConstants gc)
 
 /*********************** 2026.10.14-- ************************************/
 void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
-    if((r0>1.0 && r2<1.0) || (r0<1.0 && r2>1.0)) r2 = 2.0 - r2;
-    if((r1>1.0 && r3<1.0) || (r1<1.0 && r3>1.0)) r3 = 2.0 - r3;
+    // if((r0>1.0 && r2<1.0) || (r0<1.0 && r2>1.0)) r2 = 2.0 - r2;
+    // if((r1>1.0 && r3<1.0) || (r1<1.0 && r3>1.0)) r3 = 2.0 - r3;
     m_IscSTC *= r0;
     m_VocSTC *= r1;
-    m_ImpSTC *= r2;
-    m_VmpSTC *= r3;
+    // m_ImpSTC *= r2;
+    // m_VmpSTC *= r3;
+    m_ImpSTC *= r0; ////////////////tmp
+    m_VmpSTC *= r1;
     printf("r0=%g, r1=%g, r2=%g, r3=%g\n", r0, r1, r2, r3);///////////////t
     printf("IscSTC=%g, VocSTC=%g, ImpSTC=%g, VmpSTC=%g\n",
            m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC);//////////////////////t
@@ -78,8 +80,8 @@ void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
     setVarsSTC();
     calcA0B0();
     calc();
-    m_Imax = getI(m_Vmin);
-    m_Vmax = getV(m_Imin);
+    // m_Imax = getI(m_Vmin);
+    // m_Vmax = getV(m_Imin);
 }
 
 /** クラスの変数たちを設定する。コンストラクタから呼び出される。  *******************
@@ -246,10 +248,14 @@ double AdaptiveModel::calcLM(){
             //     printf("Delta[%d]=%g r=%g, l=%g\n", i, Delta[i],
             //            a[0+i*2]*Delta[0]+a[1+i*2]*Delta[1], b[i]);///////////////
 
+            double RsTmp {m_Rs+Delta[0]};
+            double etaTmp {m_eta+Delta[1]};
             printf("lambda=%g, E=%g\n",
-                   lambda, calcE(m_Rs+Delta[0], m_eta+Delta[1]));///////
-            if(calcE(m_Rs+Delta[0], m_eta+Delta[1]) < E && m_Rs+Delta[0]>=0.0
-               && m_eta+Delta[1]>=0.0){
+                   lambda, calcE(RsTmp, etaTmp));//////////t
+            if(RsTmp >= 0.0 && etaTmp > 0.0
+               && calcE(RsTmp, etaTmp) < E
+               && calcRh(RsTmp, etaTmp) >= 0.0 ////////////2026.10.23
+               ){
                 lambda *= 0.1;
                 break;
             }else{

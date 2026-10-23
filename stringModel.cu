@@ -176,7 +176,10 @@ double StringModel::getV(double I){
     double V;
     try{
 	V = V0 + (m_gc.L-m_vssNumSum)*m_ssInit.getV(I);
-	for(int i=0; i<m_vss.size(); i++) V += m_vss[i].getV(I)*m_vssNum[i];
+	for(int i=0; i<m_vss.size(); i++){
+            printf("i=%d, vss_size=%d, I=%g\n", i, m_vss.size(), I);////////////////////t
+            V += m_vss[i].getV(I)*m_vssNum[i];
+        }
     }catch(std::exception e){
 	std::string str {e.what()};
 	throw std::runtime_error(str+"-->StringModel::getV");
@@ -280,9 +283,20 @@ void StringModel::addSS(Substring &ss, int l){
 
     double Isc_ss {ss.getI(0.0)};
     if(Isc_ss > m_IscSub) m_IscSub = Isc_ss;
-			      
-    m_Vmin = getV(2.0*m_IscSub);
-    m_Vmax = getV(m_mIb099);
+
+    // printf("auau2\n");//////////////////
+    // m_Vmin = getV(2.0*m_IscSub);
+    // printf("auau3\n");//////////////////
+    // m_Vmax = getV(m_mIb099);
+
+    try{
+	m_Vmin = getV(2.0*m_IscSub);
+	m_Vmax = getV(m_mIb099);
+    }catch(std::exception e){
+	std::cout << e.what() << "-->StringModel::StringModel\n";
+	exit(0);//////////////t
+    }
+
 }
 
 /******************************************************************************/

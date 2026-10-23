@@ -46,14 +46,12 @@ void StringGroup::distSTCParams(){
         for(int l=0; l < m_gc.L; l++){
             Substring ss(m_gc, m_G, m_T);
             m_vsm[s].addSS(ss, 1);
-            printf("m_vsm[%d].m_vss[%d] num=%d\n", s, l, m_vsm[s].m_vssNum[l]);////////
+            printf("substring m_vsm[%d].m_vss[%d] num=%d\n", s, l, m_vsm[s].m_vssNum[l]);////////
 
-	    for(int c=0; c < m_gc.Ns_sub; c++){
-		AdaptiveModel am(m_gc, m_G, m_T);
-		am.changeSTCParams(gen(), gen(), gen(), gen());
-		m_vsm[s].m_vss[l].addAM(am, 1);
-		printf("m_vsm[%d].m_vss[%d].m_vam[%d] num=%d\n", s, l, c, m_vsm[s].m_vss[l].m_vamNum[c]);////////
-	    }
+            AdaptiveModel am(m_gc, m_G, m_T);
+            am.changeSTCParams(gen(), gen(), gen(), gen());
+            m_vsm[s].m_vss[l].addAM(am, m_gc.Ns_sub);
+            printf("m_vsm[%d].m_vss[%d]  vam_num=%d\n", s, l, m_vsm[s].m_vss[l].m_vamNum[0]);////////
 	    // exit(0);////////////////////////t
         }
     }
