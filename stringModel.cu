@@ -177,7 +177,7 @@ double StringModel::getV(double I){
     try{
 	V = V0 + (m_gc.L-m_vssNumSum)*m_ssInit.getV(I);
 	for(int i=0; i<m_vss.size(); i++){
-            printf("i=%d, vss_size=%d, I=%g\n", i, m_vss.size(), I);////////////////////t
+            // printf("i=%d, vss_size=%d, I=%g\n", i, m_vss.size(), I);////////////////////t
             V += m_vss[i].getV(I)*m_vssNum[i];
         }
     }catch(std::exception e){

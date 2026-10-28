@@ -27,7 +27,6 @@ StringGroup::StringGroup(GlobalConstants &gcc, double GG, double TT)
 
 /*********************** 2026.10.14-- ************************************/
 void StringGroup::distSTCParams(){
-    printf("StringGroup::distSTCParams()\n");//////////////////////t
     // auto gen = std::bind(std::normal_distribution<double>{1.0, 0.01},
     //                      std::default_random_engine{});
     // auto gen = std::bind(std::normal_distribution<double>{1.0, 0.005},
@@ -41,17 +40,17 @@ void StringGroup::distSTCParams(){
     for(int s=0; s < m_gc.S; s++){
         StringModel sm(m_gc, m_G, m_T);
         addSM(sm, 1);
-        printf("m_vsm[%d] num=%d\n", s, m_vsmNum[s]);//////////////////////
-
+        // printf("m_vsm[%d] num=%d\n", s, m_vsmNum[s]);//////////////////////
+        
         for(int l=0; l < m_gc.L; l++){
             Substring ss(m_gc, m_G, m_T);
             m_vsm[s].addSS(ss, 1);
-            printf("substring m_vsm[%d].m_vss[%d] num=%d\n", s, l, m_vsm[s].m_vssNum[l]);////////
+            // printf("substring m_vsm[%d].m_vss[%d] num=%d\n", s, l, m_vsm[s].m_vssNum[l]);////////
 
             AdaptiveModel am(m_gc, m_G, m_T);
             am.changeSTCParams(gen(), gen(), gen(), gen());
             m_vsm[s].m_vss[l].addAM(am, m_gc.Ns_sub);
-            printf("m_vsm[%d].m_vss[%d]  vam_num=%d\n", s, l, m_vsm[s].m_vss[l].m_vamNum[0]);////////
+            // printf("m_vsm[%d].m_vss[%d]  vam_num=%d\n", s, l, m_vsm[s].m_vss[l].m_vamNum[0]);////////
 	    // exit(0);////////////////////////t
         }
     }
@@ -126,7 +125,13 @@ void StringGroup::setGT(double G, double T){
     m_G = G;
     m_T = T;
 
-    m_smInit.setGT(G, T);
+    if(m_vsmNumSum < m_gc.S){
+        m_smInit.setGT(G, T);
+        printf("m_vsmNumSum < m_gc.S\n");/////////////t
+    }else{
+        printf("no m_vsmNumSum < m_gc.S\n");/////////////t
+    }
+    exit(0);//////////////////////t
     for(int i=0; i<m_vsm.size(); i++) m_vsm[i].setGT(G, T);
 
     m_Ib0 = m_smInit.getIb0();
@@ -190,6 +195,18 @@ double StringGroup::getPmax(double &Vmp, double &Imp){
 
     Imp = getI(Vmp);
     return Pmax;
+}
+
+/********************** 2026.10.28-- ****************************/
+void StringGroup::paramEstim2(double GG[], double TT[], double II[], double VV[], std::string Time[]){
+    printf("StringGroup.paramEstim2()\n");/////////////////////t
+    double I[GlobalConstants::K];
+    for(int k=0; k < m_gc.K; k++){
+        setGT(GG[k], TT[k]);
+        I[k] = getI(VV[k]);
+        printf("II[%d]=%g, I[%d]=%g\n", k, II[k], k, I[k]);////////////t
+    }
+
 }
 
 /** 測定データG, T, I, V に最もフィットするパラメータを探索して、それに設定する   ***

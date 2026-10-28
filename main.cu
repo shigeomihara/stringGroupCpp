@@ -150,11 +150,9 @@ int main(void){
 void stringGroupParamEstim2(GlobalConstants gc){
     StringGroup sg {gc, 1000.0, 25.0};
     sg.distSTCParams();
-    exit(0);
     
     PCSData pd(gc);
     pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");
-    // pd.averageGTIV();
 
     double G[GlobalConstants::K], T[GlobalConstants::K];
     double I[GlobalConstants::K], V[GlobalConstants::K];
@@ -171,7 +169,7 @@ void stringGroupParamEstim2(GlobalConstants gc){
 	    printf("k=%d, %s G=%g, T=%g, I=%g, V=%g\n", k, Time[k].c_str(), G[k], T[k], I[k], V[k]);//////////t
 	}
 	
-	sg.paramEstim(G, T, I, V, Time);
+	sg.paramEstim2(G, T, I, V, Time);
 	
 	break;////////////////////t
     }	

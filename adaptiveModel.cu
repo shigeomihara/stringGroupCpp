@@ -70,11 +70,11 @@ void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
     m_VocSTC *= r1;
     // m_ImpSTC *= r2;
     // m_VmpSTC *= r3;
-    m_ImpSTC *= r0; ////////////////tmp
-    m_VmpSTC *= r1;
-    printf("r0=%g, r1=%g, r2=%g, r3=%g\n", r0, r1, r2, r3);///////////////t
-    printf("IscSTC=%g, VocSTC=%g, ImpSTC=%g, VmpSTC=%g\n",
-           m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC);//////////////////////t
+    m_ImpSTC *= (r0*(0.1*r2+0.9));
+    m_VmpSTC *= (r1*(0.1*r3+0.9));
+    // printf("r0=%g, r1=%g, r2=%g, r3=%g\n", r0, r1, r2, r3);///////////////t
+    // printf("IscSTC=%g, VocSTC=%g, ImpSTC=%g, VmpSTC=%g\n",
+    //        m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC);//////////////////////t
     m_STCParamsChanged = true;
 
     setVarsSTC();
@@ -250,8 +250,7 @@ double AdaptiveModel::calcLM(){
 
             double RsTmp {m_Rs+Delta[0]};
             double etaTmp {m_eta+Delta[1]};
-            printf("lambda=%g, E=%g\n",
-                   lambda, calcE(RsTmp, etaTmp));//////////t
+            // printf("lambda=%g, E=%g\n", lambda, calcE(RsTmp, etaTmp));//////////t
             if(RsTmp >= 0.0 && etaTmp > 0.0
                && calcE(RsTmp, etaTmp) < E
                && calcRh(RsTmp, etaTmp) >= 0.0 ////////////2026.10.23
@@ -282,8 +281,8 @@ double AdaptiveModel::calcLM(){
     m_Iph = calcIph(m_Rs, m_eta, m_Rh);
     E = calcE(m_Rs, m_eta);
 
-    printf("AdaptiveModel::calcLM(): Emin=%g, Rs=%g, eta=%g, Rh=%g, I0=%g, Iph=%g\n",
-           E, m_Rs, m_eta, m_Rh, m_I0, m_Iph);/////////////////////t
+    // printf("AdaptiveModel::calcLM(): Emin=%g, Rs=%g, eta=%g, Rh=%g, I0=%g, Iph=%g\n",
+    //        E, m_Rs, m_eta, m_Rh, m_I0, m_Iph);/////////////////////t
     return E; 
 }
     
