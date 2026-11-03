@@ -152,7 +152,8 @@ void stringGroupParamEstim2(GlobalConstants gc){
     sg.distSTCParams();
     
     PCSData pd(gc);
-    pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");
+    // pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");
+    pd.readFileSim("Dat/GTIVTimeSim3Days.dat");  // Rs
 
     double G[GlobalConstants::K], T[GlobalConstants::K];
     double I[GlobalConstants::K], V[GlobalConstants::K];

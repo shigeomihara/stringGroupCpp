@@ -39,6 +39,7 @@ public:
 
     // search history of adaptive model
     SearchHistoryAM sh;
+    SearchHistoryLM shLM;
     
     bool haveGPU {false};  // GPU‚ğg‚í‚È‚¢‚Æ‚«‚ÍA‚±‚ê‚ğfalse‚É‚·‚é
 
