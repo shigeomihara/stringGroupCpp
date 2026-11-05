@@ -40,7 +40,7 @@ void StringGroup::distSTCParams(){
     for(int s=0; s < m_gc.S; s++){
         StringModel sm(m_gc, m_G, m_T);
         addSM(sm, 1);
-        // printf("m_vsm[%d] num=%d\n", s, m_vsmNum[s]);//////////////////////
+        // printf("m_vsm[%d] num=%d m_vsmNumSum=%d\n", s, m_vsmNum[s], m_vsmNumSum);//////////////////////
         
         for(int l=0; l < m_gc.L; l++){
             Substring ss(m_gc, m_G, m_T);

@@ -148,8 +148,10 @@ int main(void){
 
 /************** 2026.10.11-- ******************/
 void stringGroupParamEstim2(GlobalConstants gc){
+    printf("stringGroupParamEstim2\n");/////////////////////t
     StringGroup sg {gc, 1000.0, 25.0};
     sg.distSTCParams();
+    exit(0);/////////////////t
     
     PCSData pd(gc);
     // pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");
