@@ -49,6 +49,7 @@ public:
     double getV(double I);
 
     void getI(double Ik[GlobalConstants::K]);
+    double getI_LM(double V);
 
     double getVmin() const{ return m_Vmin; };
     double getVmax() const{ return m_Vmax; };

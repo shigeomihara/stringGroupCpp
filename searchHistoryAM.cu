@@ -40,9 +40,25 @@ int SearchHistoryAM::haveSearchResult(SearchResult &sr){
 
 /**********************************************************/
 void SearchHistoryLM::pushSearchResult(SearchResultLM &sr){
-    int i {0};
-    for( ; i<m_vsr.size(); i++){
-	if(sr.g > m_vsr[i].g) break;
+    bool be_equal {false};
+    int i1, i2;
+    for(int i ; i<m_vsr.size(); i++){
+	if(m_vsr[i].g == sr.g){
+	    i1 = i;
+	    be_equal = true;
+	    for(int j=i+1; j<m_vsr.size(); j++){
+		if(sr.g > m_vsr[j].g){
+		    i2 = j-1;
+		    break;
+		}
+	    }
+	}
+	if(sr.g > m_vsr[i].g){
+	    i2 = i;
+	    if(i==0) i1 = 0;
+	    else i1 = i-1;
+	    break;
+	}
     }  // From here !! 2026.11.3
 
 }

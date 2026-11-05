@@ -39,7 +39,7 @@ AdaptiveModel::AdaptiveModel(double IscSTCC, double VocSTCC, double ImpSTCC, dou
  *  ä÷êîåƒÇ—èoÇµÅFsetVars, calcA0B0     ********************************************/
 AdaptiveModel::AdaptiveModel(GlobalConstants &gc, double GG, double TT,
 			     bool STCParamsChanged)
-    :m_IscSTC{gc.IscSTC}, m_VocSTC{gc.VocSTC/gc.Ns},
+    :m_g{1.0}, m_t{1.0}, m_IscSTC{gc.IscSTC}, m_VocSTC{gc.VocSTC/gc.Ns},
      m_ImpSTC{gc.ImpSTC}, m_VmpSTC{gc.VmpSTC/gc.Ns},
      m_alphaSc{gc.alphaSc}, m_betaOc{gc.betaOc}, m_gammaMp{gc.gammaMp},
      m_G{GG}, m_T{TT}, m_Ns{1}, m_gc{gc},

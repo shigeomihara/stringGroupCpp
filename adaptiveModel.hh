@@ -67,7 +67,8 @@ private:
     // you must remove the file 'searchHistoryAM.dat'.
     
     // このクラスのメインの状態変数、コンストラクタで設定される
-    double m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC, m_alphaSc, m_betaOc, m_gammaMp, m_G, m_T;
+    double m_g, m_t, m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC,
+	m_alphaSc, m_betaOc, m_gammaMp, m_G, m_T;
     bool m_STCParamsChanged;
     
     int m_Ns;
@@ -141,6 +142,13 @@ public:
     double calcLM();
     double calcE(double Rs, double eta);
 
+    double get_g() const{ return m_g; }
+    double get_t() const{ return m_t; }
+    double getVocSTC() const{ return m_VocSTC; }
+    double getIscSTC() const{ return m_IscSTC; }
+    double getVmpSTC() const{ return m_VmpSTC; }
+    double getImpSTC() const{ return m_ImpSTC; }
+    
     double getRs() const{ return m_Rs; }
     double getEta() const{ return m_eta; }
     double getRh() const{ return m_Rh; }

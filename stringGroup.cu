@@ -71,6 +71,25 @@ double StringGroup::getI(double V){
     }
 }
 
+/*********************** 2026.11.5-- ******************************/
+double StringGroup::getI_LM(double V){
+    printf("getI_LM V=%g\n", V);//////////////////////t
+    for(int s=0; s<m_vsm.size(); s++){
+	for(int l=0; l<m_vsm[s].m_vss.size(); l++){
+	    printf("substring (%d, %d)\n", s, l);///////////////////////t
+	    printf("g=%g, t=%g, rVocSTC=%g, rIscSTC=%g, rVmpSTC=%g, rImpSTC=%g\n",
+		   m_vsm[s].m_vss[l].m_vam[0].get_g(),
+		   m_vsm[s].m_vss[l].m_vam[0].get_t(),
+		   m_vsm[s].m_vss[l].m_vam[0].getVocSTC()*m_gc.Ns/m_gc.VocSTC,
+		   m_vsm[s].m_vss[l].m_vam[0].getIscSTC()/m_gc.IscSTC,
+		   m_vsm[s].m_vss[l].m_vam[0].getVmpSTC()*m_gc.Ns/m_gc.VmpSTC,
+		   m_vsm[s].m_vss[l].m_vam[0].getImpSTC()/m_gc.ImpSTC);///////////t
+	}
+    }
+    exit(0);//////////////////////////t
+    return 0.0;
+}
+
 /** m_aVsg[K]‚É‘Î‚·‚éIk‚ðŒvŽZ‚µ‚ÄAIk[K]‚É‘‚«ž‚Þ    *******************************/
 void StringGroup::getI(double Ik[GlobalConstants::K]){
     for(int k=0; k<m_gc.K; k++){
@@ -202,8 +221,9 @@ void StringGroup::paramEstim2(double GG[], double TT[], double II[], double VV[]
     printf("StringGroup.paramEstim2()\n");/////////////////////t
     double I[GlobalConstants::K];
     for(int k=0; k < m_gc.K; k++){
-        setGT(GG[k], TT[k]);
-        I[k] = getI(VV[k]);
+        // setGT(GG[k], TT[k]);
+        // I[k] = getI(VV[k]);
+	I[k] = getI_LM(VV[k]);
         printf("II[%d]=%g, I[%d]=%g\n", k, II[k], k, I[k]);////////////t
     }
 
