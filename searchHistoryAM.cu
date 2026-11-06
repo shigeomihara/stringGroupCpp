@@ -40,27 +40,138 @@ int SearchHistoryAM::haveSearchResult(SearchResult &sr){
 
 /**********************************************************/
 void SearchHistoryLM::pushSearchResult(SearchResultLM &sr){
-    bool be_equal {false};
-    int i1, i2;
-    for(int i ; i<m_vsr.size(); i++){
-	if(m_vsr[i].g == sr.g){
+    // rVocSTC
+    int i1=-1, i2=0; // sr.rVocSTC==m_vsr[i].rVocSTC for i in [i1, i2)
+    for(int i=0; i<m_vsr.size(); i++){
+	if(m_vsr[i].rVocSTC == sr.rVocSTC){
 	    i1 = i;
-	    be_equal = true;
-	    for(int j=i+1; j<m_vsr.size(); j++){
-		if(sr.g > m_vsr[j].g){
-		    i2 = j-1;
-		    break;
-		}
+            int j {i+1};
+	    for( ; j<m_vsr.size(); j++){
+		if(sr.rVocSTC > m_vsr[j].rVocSTC) break;
 	    }
+            i2 = j;
+            break;
+	}
+	if(sr.rVocSTC > m_vsr[i].rVocSTC){
+            m_vsr.insert(m_vsr.begin()+i, sr);
+	    return;
+	}
+    }
+    if(i1 < 0){
+        m_vsr.push_back(sr); 
+        return;
+    }
+
+    // rIscSTC
+    int i3=-1, i4=0; // sr.rIscSTC==m_vsr[i].rIscSTC for i in [i3, i4)
+    for(int i=i1; i<i2; i++){
+	if(m_vsr[i].rIscSTC == sr.rIscSTC){
+	    i3 = i;
+            int j {i+1};
+	    for( ; j<i2; j++){
+		if(sr.rIscSTC > m_vsr[j].rIscSTC) break;
+	    }
+            i4 = j;
+            break;
+	}
+	if(sr.rIscSTC > m_vsr[i].rIscSTC){
+            m_vsr.insert(m_vsr.begin()+i, sr);
+	    return;
+	}
+    }
+    if(i3 < 0){
+        m_vsr.insert(m_vsr.begin()+i2, sr);
+        return;
+    }
+    
+    // rVmpSTC
+    int i5=-1, i6=0; // sr.rVmpSTC==m_vsr[i].rVmpSTC for i in [i5, i6)
+    for(int i=i3; i<i4; i++){
+	if(m_vsr[i].rVmpSTC == sr.rVmpSTC){
+	    i5 = i;
+            int j {i+1};
+	    for( ; j<i4; j++){
+		if(sr.rVmpSTC > m_vsr[j].rVmpSTC) break;
+	    }
+            i6 = j;
+            break;
+	}
+	if(sr.rVmpSTC > m_vsr[i].rVmpSTC){
+            m_vsr.insert(m_vsr.begin()+i, sr);
+	    return;
+	}
+    }
+    if(i5 < 0){
+        m_vsr.insert(m_vsr.begin()+i4, sr);
+        return;
+    }
+    
+    // rImpSTC
+    int i7=-1, i8=0; // sr.rImpSTC==m_vsr[i].rImpSTC for i in [i7, i8)
+    for(int i=i5; i<i6; i++){
+	if(m_vsr[i].rImpSTC == sr.rImpSTC){
+	    i7 = i;
+            int j {i+1};
+	    for( ; j<i6; j++){
+		if(sr.rImpSTC > m_vsr[j].rImpSTC) break;
+	    }
+            i8 = j;
+            break;
+	}
+	if(sr.rImpSTC > m_vsr[i].rImpSTC){
+            m_vsr.insert(m_vsr.begin()+i, sr);
+	    return;
+	}
+    }
+    if(i7 < 0){
+        m_vsr.insert(m_vsr.begin()+i6, sr);
+        return;
+    }
+    
+    // g
+    int i9=-1, i10=0; // sr.g==m_vsr[i].g for i in [i9, i10)
+    for(int i=i7; i<i8; i++){
+	if(m_vsr[i].g == sr.g){
+	    i9 = i;
+            int j {i+1};
+	    for( ; j<i8; j++){
+		if(sr.g > m_vsr[j].g) break;
+	    }
+            i10 = j;
+            break;
 	}
 	if(sr.g > m_vsr[i].g){
-	    i2 = i;
-	    if(i==0) i1 = 0;
-	    else i1 = i-1;
-	    break;
+            m_vsr.insert(m_vsr.begin()+i, sr);
+	    return;
 	}
-    }  // From here !! 2026.11.3
-
+    }
+    if(i9 < 0){
+        m_vsr.insert(m_vsr.begin()+i8, sr);
+        return;
+    }
+    
+    // t
+    int i11=-1, i12=0; // sr.t==m_vsr[i].t for i in [i11, i12)
+    for(int i=i9; i<i10; i++){
+	if(m_vsr[i].t == sr.t){
+	    i11 = i;
+            int j {i+1};
+	    for( ; j<i10; j++){
+		if(sr.t > m_vsr[j].t) break;
+	    }
+            i12 = j;
+            m_vsr.insert(m_vsr.begin()+i12, sr);
+            return;
+	}
+	if(sr.t > m_vsr[i].t){
+            m_vsr.insert(m_vsr.begin()+i, sr);
+	    return;
+	}
+    }
+    if(i11 < 0){
+        m_vsr.insert(m_vsr.begin()+i10, sr);
+        return;
+    }
 }
 
 /**********************************************************/
@@ -126,12 +237,12 @@ void SearchHistoryLM::readFile(){
 	std::vector<std::string> vStr = PCSData::splitString(str, ',');
 
 	SearchResultLM sr;
-	sr.g = stod(vStr[0]);
-	sr.t = stod(vStr[1]);
-	sr.rVocSTC = stod(vStr[2]);
-	sr.rIscSTC = stod(vStr[3]);
-	sr.rVmpSTC = stod(vStr[4]);
-	sr.rImpSTC = stod(vStr[5]);
+	sr.rVocSTC = stod(vStr[0]);
+	sr.rIscSTC = stod(vStr[1]);
+	sr.rVmpSTC = stod(vStr[2]);
+	sr.rImpSTC = stod(vStr[3]);
+	sr.g = stod(vStr[4]);
+	sr.t = stod(vStr[5]);
 	sr.Rs = stod(vStr[6]);
 	sr.eta = stod(vStr[7]);
 	sr.Iph = stod(vStr[8]);
@@ -168,9 +279,8 @@ void SearchHistoryLM::saveFile(){
     fs << std::scientific << std::setprecision(20);
 	
     for(int i=m_fileLineNum; i<m_vsr.size(); i++){
-	fs << m_vsr[i].g << ", " << m_vsr[i].t << ", " << m_vsr[i].rVocSTC << ", "
-	    << m_vsr[i].rIscSTC << ", " << m_vsr[i].rVmpSTC << ", "
-	   << m_vsr[i].rImpSTC << ", "
+	fs << m_vsr[i].rVocSTC << ", " << m_vsr[i].rIscSTC << ", " << m_vsr[i].rVmpSTC << ", "
+	   << m_vsr[i].rImpSTC << ", " << m_vsr[i].g << ", " << m_vsr[i].t << ", "
 	   << m_vsr[i].Rs << ", " << m_vsr[i].eta << ", " << m_vsr[i].Iph
 	   << ", " << m_vsr[i].I0 << ", " << m_vsr[i].Rh << ", "
 	   << m_vsr[i].Emin <<std::endl; 

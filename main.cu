@@ -151,6 +151,20 @@ void stringGroupParamEstim2(GlobalConstants gc){
     printf("stringGroupParamEstim2\n");/////////////////////t
     StringGroup sg {gc, 1000.0, 25.0};
     sg.distSTCParams();
+
+    // test searchHistoryLM////////////////t
+    for(int s=0; s<sg.m_vsm.size(); s++){
+        for(int l=0; l<sg.m_vsm[s].m_vss.size(); l++){
+            AdaptiveModel& ad = sg.m_vsm[s].m_vss[l].m_vam[0];
+            SearchResultLM sr {ad.getVocSTC()*gc.Ns/gc.VocSTC, ad.getIscSTC()/gc.IscSTC,
+                               ad.getVmpSTC()*gc.Ns/gc.VmpSTC, ad.getImpSTC()/gc.ImpSTC,
+                               ad.get_g(), ad.get_t(),
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            gc.shLM.pushSearchResult(sr);
+        }
+    }
+    gc.shLM.saveFile();
+    exit(0);///////////////////t push OK. from here!!
     
     PCSData pd(gc);
     // pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");

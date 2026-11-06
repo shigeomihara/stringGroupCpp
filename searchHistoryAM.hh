@@ -20,7 +20,7 @@ struct SearchResult{
 /***********************************************/
 struct SearchResultLM{
     // inputs
-    double g, t, rVocSTC, rIscSTC, rVmpSTC, rImpSTC;
+    double rVocSTC, rIscSTC, rVmpSTC, rImpSTC, g, t;
     // outputs
     double Rs, eta, Iph, I0, Rh, Emin;
 };
