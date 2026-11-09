@@ -49,7 +49,6 @@ public:
 class SearchHistoryLM{
 private:
     std::string m_fileName {"Dat/searchHistoryLM.dat"};
-    int m_fileLineNum {0};
 
 public:
     SearchHistoryLM();

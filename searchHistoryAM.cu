@@ -154,13 +154,8 @@ void SearchHistoryLM::pushSearchResult(SearchResultLM &sr){
     int i11=-1, i12=0; // sr.t==m_vsr[i].t for i in [i11, i12)
     for(int i=i9; i<i10; i++){
 	if(m_vsr[i].t == sr.t){
-	    i11 = i;
-            int j {i+1};
-	    for( ; j<i10; j++){
-		if(sr.t > m_vsr[j].t) break;
-	    }
-            i12 = j;
-            m_vsr.insert(m_vsr.begin()+i12, sr);
+	    // All rVocSTC, rIscSTC, rVmpSTC, rImpSTC, g, t are the same as sr
+	    // ==> don't add 
             return;
 	}
 	if(sr.t > m_vsr[i].t){
@@ -251,7 +246,6 @@ void SearchHistoryLM::readFile(){
 	sr.Emin = stod(vStr[11]);
 
 	m_vsr.push_back(sr);
-	m_fileLineNum++;
     }
     printf("SearchHistoryLM::readFile(), file '%s' read.\n",
 	   m_fileName.c_str());///////////////////
@@ -275,10 +269,10 @@ void SearchHistoryAM::saveFile(){
 
 /***************************************************************/
 void SearchHistoryLM::saveFile(){
-    std::fstream fs {m_fileName, std::ios_base::app};
+    std::fstream fs {m_fileName, std::ios_base::out};  // out
     fs << std::scientific << std::setprecision(20);
 	
-    for(int i=m_fileLineNum; i<m_vsr.size(); i++){
+    for(int i=0; i<m_vsr.size(); i++){  // from i=0
 	fs << m_vsr[i].rVocSTC << ", " << m_vsr[i].rIscSTC << ", " << m_vsr[i].rVmpSTC << ", "
 	   << m_vsr[i].rImpSTC << ", " << m_vsr[i].g << ", " << m_vsr[i].t << ", "
 	   << m_vsr[i].Rs << ", " << m_vsr[i].eta << ", " << m_vsr[i].Iph
@@ -286,5 +280,5 @@ void SearchHistoryLM::saveFile(){
 	   << m_vsr[i].Emin <<std::endl; 
     }
     fs.close();
-    printf("SearchHistoryAM::saveFile(), %zd lines added to file '%s'.\n", m_vsr.size()-m_fileLineNum, m_fileName.c_str());///////////////////
+    printf("SearchHistoryLM::saveFile(), %zd lines saved to file '%s'.\n", m_vsr.size(), m_fileName.c_str());///////////////////
 }
