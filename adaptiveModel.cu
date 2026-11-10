@@ -292,7 +292,7 @@ double AdaptiveModel::calcLM(){
  *  関数呼び出し：Search, calcI0, calcIph
  *  戻り値：Emin (==INFINITYのときは、Rs, etaなどが設定されていないので注意）   *****/
 double AdaptiveModel::calc(){
-    if(m_STCParamsChanged && m_Rs>=0.0){
+    if(m_STCParamsChanged && m_Rs>=0.0){ // from here !! 2026.11.10
         m_Rs = 1.0e-10;  m_eta=1.6; /////////////////////////t
 	return calcLM();
     }

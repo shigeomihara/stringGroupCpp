@@ -160,11 +160,14 @@ void stringGroupParamEstim2(GlobalConstants gc){
                                ad.getVmpSTC()*gc.Ns/gc.VmpSTC, ad.getImpSTC()/gc.ImpSTC,
                                ad.get_g(), ad.get_t(),
                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            gc.shLM.pushSearchResult(sr);
+	    double minAbsDist;
+	    int minIndex = gc.shLM.nearestSearchResult(sr, minAbsDist);
+	    // printf("s=%d, l=%d, minIndex=%d, minAbsDist=%g\n", s, l, minIndex, minAbsDist);////////////////////////t
+            if(minAbsDist != 0.0) gc.shLM.m_vsr.push_back(sr);
         }
     }
     gc.shLM.saveFile();
-    exit(0);///////////////////t push OK. from here!!
+    exit(0);///////////////////t
     
     PCSData pd(gc);
     // pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");
