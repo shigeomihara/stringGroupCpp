@@ -23,6 +23,8 @@ struct SearchResultLM{
     double rVocSTC, rIscSTC, rVmpSTC, rImpSTC, g, t;
     // outputs
     double Rs, eta, Iph, I0, Rh, Emin;
+
+    double absDist(SearchResultLM &sr);
 };
 
 /************************************************/
@@ -49,6 +51,7 @@ public:
 class SearchHistoryLM{
 private:
     std::string m_fileName {"Dat/searchHistoryLM.dat"};
+    int m_fileLineNum {0};
 
 public:
     SearchHistoryLM();
@@ -57,8 +60,7 @@ public:
     // A history of search results
     std::vector<SearchResultLM> m_vsr;
 
-    void pushSearchResult(SearchResultLM &sr);
-    int nearestSearchResult(SearchResultLM &sr);
+    int nearestSearchResult(SearchResultLM &sr, double &minAbsDist);
     void readFile();
     void saveFile();
 };
