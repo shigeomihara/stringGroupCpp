@@ -31,11 +31,7 @@ void StringGroup::distSTCParams(){
     //                      std::default_random_engine{});
     // auto gen = std::bind(std::normal_distribution<double>{1.0, 0.005},
     //                      std::default_random_engine{});
-    auto gen = std::bind(std::uniform_real_distribution<double>{0.99, 1.01},
-                         std::default_random_engine{});
-    // for(int i=0; i<10; i++){
-    //     printf("%g\n", gen());
-    // }
+    auto gen = std::bind(std::uniform_real_distribution<double>{1.0-m_gc.randSize, 1.0+m_gc.randSize}, std::default_random_engine{});
     
     for(int s=0; s < m_gc.S; s++){
         StringModel sm(m_gc, m_G, m_T);

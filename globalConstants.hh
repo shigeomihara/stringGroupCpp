@@ -40,6 +40,9 @@ public:
     // search history of adaptive model
     SearchHistoryAM sh;
     SearchHistoryLM shLM;
+
+    const double randSize {0.01};  // StringGroup::distSTCParams()
+    const double threshSearchResult {0.006};
     
     bool haveGPU {false};  // GPU‚ğg‚í‚È‚¢‚Æ‚«‚ÍA‚±‚ê‚ğfalse‚É‚·‚é
 

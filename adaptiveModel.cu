@@ -42,7 +42,7 @@ AdaptiveModel::AdaptiveModel(GlobalConstants &gc, double GG, double TT,
     :m_g{1.0}, m_t{1.0}, m_IscSTC{gc.IscSTC}, m_VocSTC{gc.VocSTC/gc.Ns},
      m_ImpSTC{gc.ImpSTC}, m_VmpSTC{gc.VmpSTC/gc.Ns},
      m_alphaSc{gc.alphaSc}, m_betaOc{gc.betaOc}, m_gammaMp{gc.gammaMp},
-     m_G{GG}, m_T{TT}, m_Ns{1}, m_gc{gc},
+     m_G{m_g*GG}, m_T{m_t*TT}, m_Ns{1}, m_gc{gc},
      m_STCParamsChanged{STCParamsChanged}{  // modified m_Ns{gc.Ns_sub}, Mar.4,2026
 
     setVars();
@@ -293,6 +293,11 @@ double AdaptiveModel::calcLM(){
  *  戻り値：Emin (==INFINITYのときは、Rs, etaなどが設定されていないので注意）   *****/
 double AdaptiveModel::calc(){
     if(m_STCParamsChanged && m_Rs>=0.0){ // from here !! 2026.11.10
+        SearchResultLM sr {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
+                           m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
+                           m_g, m_t, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        double minDist;
+        int minIndex = m_gc.shLM.nearestSearchResult(sr, minDist);
         m_Rs = 1.0e-10;  m_eta=1.6; /////////////////////////t
 	return calcLM();
     }
