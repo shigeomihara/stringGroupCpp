@@ -163,35 +163,35 @@ void stringGroupParamEstim2(GlobalConstants gc){
 	    double minAbsDist;
 	    int minIndex = gc.shLM.nearestSearchResult(sr, minAbsDist);
 	    // printf("s=%d, l=%d, minIndex=%d, minAbsDist=%g\n", s, l, minIndex, minAbsDist);////////////////////////t
-            if(minAbsDist != 0.0) gc.shLM.m_vsr.push_back(sr);
+            // if(minAbsDist != 0.0) gc.shLM.m_vsr.push_back(sr);
         }
     }
-    gc.shLM.saveFile();
-    exit(0);///////////////////t
+    // gc.shLM.saveFile();
+    // exit(0);///////////////////t
     
-    PCSData pd(gc);
-    // pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");
-    pd.readFileSim("Dat/GTIVTimeSim3Days.dat");  // Rs
+    // PCSData pd(gc);
+    // // pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");
+    // pd.readFileSim("Dat/GTIVTimeSim3Days.dat");  // Rs
 
-    double G[GlobalConstants::K], T[GlobalConstants::K];
-    double I[GlobalConstants::K], V[GlobalConstants::K];
-    std::string Time[GlobalConstants::K];
+    // double G[GlobalConstants::K], T[GlobalConstants::K];
+    // double I[GlobalConstants::K], V[GlobalConstants::K];
+    // std::string Time[GlobalConstants::K];
 
-    for(int i=0; i<=pd.G.size()-gc.K; i+=gc.K){
-	for(int k=0; k<gc.K; k++){
-	    G[k] = pd.G[i+k];
-	    T[k] = pd.T[i+k];
-	    I[k] = pd.I[i+k];
-	    V[k] = pd.V[i+k];
-	    Time[k] = pd.Time[i+k];
+    // for(int i=0; i<=pd.G.size()-gc.K; i+=gc.K){
+    //     for(int k=0; k<gc.K; k++){
+    //         G[k] = pd.G[i+k];
+    //         T[k] = pd.T[i+k];
+    //         I[k] = pd.I[i+k];
+    //         V[k] = pd.V[i+k];
+    //         Time[k] = pd.Time[i+k];
 	    
-	    printf("k=%d, %s G=%g, T=%g, I=%g, V=%g\n", k, Time[k].c_str(), G[k], T[k], I[k], V[k]);//////////t
-	}
+    //         printf("k=%d, %s G=%g, T=%g, I=%g, V=%g\n", k, Time[k].c_str(), G[k], T[k], I[k], V[k]);//////////t
+    //     }
 	
-	sg.paramEstim2(G, T, I, V, Time);
+    //     sg.paramEstim2(G, T, I, V, Time);
 	
-	break;////////////////////t
-    }	
+    //     break;////////////////////t
+    // }	
 }
 
 /**************  ******************/

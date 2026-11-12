@@ -61,6 +61,7 @@ public:
     std::vector<SearchResultLM> m_vsr;
 
     int nearestSearchResult(SearchResultLM &sr, double &minAbsDist);
+    void addSearchResult(SearchResultLM &sr);
     void readFile();
     void saveFile();
 };

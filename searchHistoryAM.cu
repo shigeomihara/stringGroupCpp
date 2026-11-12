@@ -55,6 +55,15 @@ int SearchHistoryLM::nearestSearchResult(SearchResultLM &sr, double &minAbsDist)
 }
 
 /**********************************************************/
+void SearchHistoryLM::addSearchResult(SearchResultLM &sr){
+    for(int i=0; i<m_vsr.size(); i++){
+        if(m_vsr[i].absDist(sr)==0.0) return;
+    }
+    m_vsr.push_back(sr);
+}
+    
+
+/**********************************************************/
 bool SearchResult::equal(SearchResult &sr){
     // printf("Isc=%g, sr.Isc=%g\n", Isc, sr.Isc);//////////////////////
     if(Isc==sr.Isc && Voc==sr.Voc && Imp==sr.Imp

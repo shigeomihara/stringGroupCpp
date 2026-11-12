@@ -292,6 +292,7 @@ double AdaptiveModel::calcLM(){
  *  関数呼び出し：Search, calcI0, calcIph
  *  戻り値：Emin (==INFINITYのときは、Rs, etaなどが設定されていないので注意）   *****/
 double AdaptiveModel::calc(){
+    printf("m_STCParamsChanged=%d,  m_Rs=%g\n", m_STCParamsChanged, m_Rs);///////////////////
     if(m_STCParamsChanged && m_Rs>=0.0){ // from here !! 2026.11.10
         SearchResultLM sr {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
                            m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
@@ -311,9 +312,15 @@ double AdaptiveModel::calc(){
 	m_Rh = m_gc.sh.m_vsr[iSr].Rh;
 	m_I0 = m_gc.sh.m_vsr[iSr].I0;
 	m_Iph = m_gc.sh.m_vsr[iSr].Iph;
-	// printf("calc: haveSearchResult, Emin=%g\n",
-	//        m_gc.sh.m_vsr[iSr].Emin);//////////////////////////
-	return m_gc.sh.m_vsr[iSr].Emin;
+        double Emin {m_gc.sh.m_vsr[iSr].Emin};  // added 2026.11.12
+	printf("calc: haveSearchResult, iSr=%d, Emin=%g\n",
+	       iSr, m_gc.sh.m_vsr[iSr].Emin);//////////////////////////
+        SearchResultLM srLM {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
+                             m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
+                             m_g, m_t, m_Rs, m_eta, m_Iph, m_I0, m_Rh, Emin};
+        m_gc.shLM.addSearchResult(srLM);
+        // exit(0);///////////////////
+	return Emin;
     }
     
     double Emin {std::numeric_limits<double>::infinity()};
