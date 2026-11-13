@@ -38,7 +38,7 @@ AdaptiveModel::AdaptiveModel(double IscSTCC, double VocSTCC, double ImpSTCC, dou
  *  出力：IscSTC, VocSTC, ImpSTC, VmpSTC, alphaSc, betaOc, gammaMp, G, T, Ns
  *  関数呼び出し：setVars, calcA0B0     ********************************************/
 AdaptiveModel::AdaptiveModel(GlobalConstants &gc, double GG, double TT,
-			     bool STCParamsChanged)
+			     bool STCParamsChanged, bool doCalc)
     :m_g{1.0}, m_t{1.0}, m_IscSTC{gc.IscSTC}, m_VocSTC{gc.VocSTC/gc.Ns},
      m_ImpSTC{gc.ImpSTC}, m_VmpSTC{gc.VmpSTC/gc.Ns},
      m_alphaSc{gc.alphaSc}, m_betaOc{gc.betaOc}, m_gammaMp{gc.gammaMp},
@@ -46,11 +46,13 @@ AdaptiveModel::AdaptiveModel(GlobalConstants &gc, double GG, double TT,
      m_STCParamsChanged{STCParamsChanged}{  // modified m_Ns{gc.Ns_sub}, Mar.4,2026
 
     setVars();
-    calcA0B0();
-    calc();    // added Mar.4, 2026
-    m_Imax = getI(m_Vmin);
-    m_Vmax = getV(m_Imin);
-    
+        
+    if(doCalc){
+        calcA0B0();
+        calc();    // added Mar.4, 2026
+        m_Imax = getI(m_Vmin);
+        m_Vmax = getV(m_Imin);
+    }
     // testVars(33.4);////////////////////////
 }
 
@@ -79,6 +81,7 @@ void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
 
     setVarsSTC();
     calcA0B0();
+    printf("AdaptiveModel.changeSTCParams calc\n");/////////////////////////t
     calc();
     // m_Imax = getI(m_Vmin);
     // m_Vmax = getV(m_Imin);
@@ -292,15 +295,16 @@ double AdaptiveModel::calcLM(){
  *  関数呼び出し：Search, calcI0, calcIph
  *  戻り値：Emin (==INFINITYのときは、Rs, etaなどが設定されていないので注意）   *****/
 double AdaptiveModel::calc(){
-    printf("m_STCParamsChanged=%d,  m_Rs=%g\n", m_STCParamsChanged, m_Rs);///////////////////
     if(m_STCParamsChanged && m_Rs>=0.0){ // from here !! 2026.11.10
-        SearchResultLM sr {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
-                           m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
-                           m_g, m_t, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-        double minDist;
-        int minIndex = m_gc.shLM.nearestSearchResult(sr, minDist);
-        m_Rs = 1.0e-10;  m_eta=1.6; /////////////////////////t
-	return calcLM();
+        printf("m_STCParamsChanged=%d,  m_Rs=%g\n", m_STCParamsChanged, m_Rs);///////////////////
+        // SearchResultLM sr {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
+        //                    m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
+        //                    m_g, m_t, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        // double minDist;
+        // int minIndex = m_gc.shLM.nearestSearchResult(sr, minDist);
+        // m_Rs = 1.0e-10;  m_eta=1.6; /////////////////////////t
+	// return calcLM();
+        return 1.0;/////////////////////t
     }
     
     SearchResult sr0 {m_Isc, m_Voc, m_Imp, m_Vmp, m_Tkel, m_absA0, m_absB0,
@@ -314,13 +318,15 @@ double AdaptiveModel::calc(){
 	m_Iph = m_gc.sh.m_vsr[iSr].Iph;
         double Emin {m_gc.sh.m_vsr[iSr].Emin};  // added 2026.11.12
 	printf("calc: haveSearchResult, iSr=%d, Emin=%g\n",
-	       iSr, m_gc.sh.m_vsr[iSr].Emin);//////////////////////////
+	       iSr, m_gc.sh.m_vsr[iSr].Emin);//////////////////////////t
         SearchResultLM srLM {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
                              m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
                              m_g, m_t, m_Rs, m_eta, m_Iph, m_I0, m_Rh, Emin};
         m_gc.shLM.addSearchResult(srLM);
         // exit(0);///////////////////
 	return Emin;
+    }else{
+	printf("calc: haveSearchResult, no\n");////////////////t
     }
     
     double Emin {std::numeric_limits<double>::infinity()};

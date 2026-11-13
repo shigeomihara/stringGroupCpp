@@ -133,7 +133,7 @@ public:
     //AdaptiveModel(GlobalConstants &gc, double G, double T);
     AdaptiveModel(GlobalConstants gc);  // Constructor doing nothing
     AdaptiveModel(GlobalConstants &gc, double GG, double TT,
-		  bool STCParamsChanged=false);
+		  bool STCParamsChanged=false, bool doCalc=true);
 
     double calc();
     // double calcRh(double Rs, double eta);//////////////////////t
