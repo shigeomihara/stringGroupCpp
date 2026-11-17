@@ -81,7 +81,6 @@ void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
 
     setVarsSTC();
     calcA0B0();
-    printf("AdaptiveModel.changeSTCParams calc\n");/////////////////////////t
     calc();
     // m_Imax = getI(m_Vmin);
     // m_Vmax = getV(m_Imin);
@@ -295,13 +294,15 @@ double AdaptiveModel::calcLM(){
  *  関数呼び出し：Search, calcI0, calcIph
  *  戻り値：Emin (==INFINITYのときは、Rs, etaなどが設定されていないので注意）   *****/
 double AdaptiveModel::calc(){
-    if(m_STCParamsChanged && m_Rs>=0.0){ // from here !! 2026.11.10
-        printf("m_STCParamsChanged=%d,  m_Rs=%g\n", m_STCParamsChanged, m_Rs);///////////////////
+    if(m_STCParamsChanged){ //aaa
+        printf("m_STCParamsChanged=%d,  m_Rs=%g\n", m_STCParamsChanged, m_Rs);///////////////////t
         // SearchResultLM sr {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
         //                    m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
         //                    m_g, m_t, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         // double minDist;
         // int minIndex = m_gc.shLM.nearestSearchResult(sr, minDist);
+        // printf("minIndex=%d, minDist=%g\n", minIndex, minDist);///////////////////t
+        exit(0);
         // m_Rs = 1.0e-10;  m_eta=1.6; /////////////////////////t
 	// return calcLM();
         return 1.0;/////////////////////t
@@ -319,10 +320,10 @@ double AdaptiveModel::calc(){
         double Emin {m_gc.sh.m_vsr[iSr].Emin};  // added 2026.11.12
 	printf("calc: haveSearchResult, iSr=%d, Emin=%g\n",
 	       iSr, m_gc.sh.m_vsr[iSr].Emin);//////////////////////////t
-        SearchResultLM srLM {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
-                             m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
-                             m_g, m_t, m_Rs, m_eta, m_Iph, m_I0, m_Rh, Emin};
-        m_gc.shLM.addSearchResult(srLM);
+        // SearchResultLM srLM {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
+        //                      m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
+        //                      m_g, m_t, m_Rs, m_eta, m_Iph, m_I0, m_Rh, Emin};
+        // m_gc.shLM.addSearchResult(srLM);
         // exit(0);///////////////////
 	return Emin;
     }else{

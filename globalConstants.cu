@@ -6,12 +6,16 @@
 #include "globalConstants.hh"
 
 /************ コンストラクタ   ************/
-GlobalConstants::GlobalConstants(bool haveGPU): sh{haveGPU}, shLM{}{
+// GlobalConstants::GlobalConstants(bool haveGPU): sh{haveGPU}, shLM{}{
+GlobalConstants::GlobalConstants(bool haveGPU):
+    sh{haveGPU}{
     this->haveGPU = haveGPU;
+    sh.setSTCValues(IscSTC, VocSTC, ImpSTC, VmpSTC);
 }
 
-GlobalConstants::GlobalConstants(bool haveGPU, std::string kataban):
-    sh{haveGPU}, shLM{}{
+GlobalConstants::GlobalConstants(bool haveGPU, std::string kataban)
+    //     sh{haveGPU}, shLM{}{
+    : sh{haveGPU}{
     this->haveGPU = haveGPU;
     
     if(kataban == "ND240HA"){
@@ -25,4 +29,6 @@ GlobalConstants::GlobalConstants(bool haveGPU, std::string kataban):
 	ImpSTC = ImpSTC_ND265HD;
 	VmpSTC = VmpSTC_ND265HD;
     }
+
+    sh.setSTCValues(IscSTC, VocSTC, ImpSTC, VmpSTC);
 }

@@ -15,6 +15,7 @@ struct SearchResult{
     double Rs, eta, Rh, I0, Iph, Emin;
 
     bool equal(SearchResult &sr);
+    double absDist(SearchResult &sr);
 };
 
 /***********************************************/
@@ -33,9 +34,16 @@ private:
     std::string m_fileName;
     int m_fileLineNum {0};
 
+    float m_IscSTC_MD;
+    float m_VocSTC_MD;
+    float m_ImpSTC_MD;
+    float m_VmpSTC_MD;
+
 public:
     SearchHistoryAM(bool haveGPU);
     ~SearchHistoryAM();
+
+    void setSTCValues(float IscSTC, float VocSTC, float ImpSTC, float VmpSTC); 
     
     // A history of search results
     std::vector<SearchResult> m_vsr;

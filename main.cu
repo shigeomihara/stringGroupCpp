@@ -151,18 +151,17 @@ void stringGroupParamEstim2(GlobalConstants gc){
     printf("stringGroupParamEstim2\n");/////////////////////t
     StringGroup sg {gc, 1000.0, 25.0};
     sg.distSTCParams();
-    exit(0);///////////////////////////t
 
     // test searchHistoryLM////////////////t
     for(int s=0; s<sg.m_vsm.size(); s++){
         for(int l=0; l<sg.m_vsm[s].m_vss.size(); l++){
             AdaptiveModel& ad = sg.m_vsm[s].m_vss[l].m_vam[0];
-            SearchResultLM sr {ad.getVocSTC()*gc.Ns/gc.VocSTC, ad.getIscSTC()/gc.IscSTC,
-                               ad.getVmpSTC()*gc.Ns/gc.VmpSTC, ad.getImpSTC()/gc.ImpSTC,
-                               ad.get_g(), ad.get_t(),
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-	    double minAbsDist;
-	    int minIndex = gc.shLM.nearestSearchResult(sr, minAbsDist);
+            // SearchResultLM sr {ad.getVocSTC()*gc.Ns/gc.VocSTC, ad.getIscSTC()/gc.IscSTC,
+            //                    ad.getVmpSTC()*gc.Ns/gc.VmpSTC, ad.getImpSTC()/gc.ImpSTC,
+            //                    ad.get_g(), ad.get_t(),
+            //                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+	    // double minAbsDist;
+	    // int minIndex = gc.shLM.nearestSearchResult(sr, minAbsDist);
 	    // printf("s=%d, l=%d, minIndex=%d, minAbsDist=%g\n", s, l, minIndex, minAbsDist);////////////////////////t
             // if(minAbsDist != 0.0) gc.shLM.m_vsr.push_back(sr);
         }

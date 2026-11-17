@@ -1,6 +1,6 @@
 // -*- C++ -*-
 /*********************************************************************
- *      searchHistoryAM.hh
+ *      searchHistoryAM.cu
  ********************************************************************/
 #include "searchHistoryAM.hh"
 #include <iostream>
@@ -29,6 +29,14 @@ SearchHistoryAM::~SearchHistoryAM(){
 /***************** Destructor *****************************/
 SearchHistoryLM::~SearchHistoryLM(){
     saveFile();
+}
+
+/**********************************************************/
+void SearchHistoryAM::setSTCValues(float IscSTC, float VocSTC, float ImpSTC, float VmpSTC){
+    m_IscSTC_MD = IscSTC;
+    m_VocSTC_MD = VocSTC;
+    m_ImpSTC_MD = ImpSTC;
+    m_VmpSTC_MD = VmpSTC;
 }
 
 /**********************************************************/
@@ -70,6 +78,14 @@ bool SearchResult::equal(SearchResult &sr){
        && Vmp==sr.Vmp && Tkel==sr.Tkel
        && absA0==sr.absA0 && absB0==sr.absB0) return true;
     else return false;
+}
+
+/*********************************************************/
+double SearchResult::absDist(SearchResult &sr){
+    return 0.0;//////////////////////t
+    // return std::abs(Isc-sr.Isc) + std::abs(rIscSTC-sr.rIscSTC)
+    //     + std::abs(rVmpSTC-sr.rVmpSTC) + std::abs(rImpSTC-sr.rImpSTC)
+    //     + std::abs(g-sr.g) + std::abs(t-sr.t);
 }
 
 /*********************************************************/

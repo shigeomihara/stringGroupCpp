@@ -42,10 +42,10 @@ void StringGroup::distSTCParams(){
             Substring ss(m_gc, m_G, m_T); // from here no Initial?? 2026.11.13
             m_vsm[s].addSS(ss, 1);
             // printf("substring m_vsm[%d].m_vss[%d] num=%d\n", s, l, m_vsm[s].m_vssNum[l]);////////
-
             AdaptiveModel am(m_gc, m_G, m_T, false, false); // STCparamsChanged=false, doCalc=false
             printf("s=%d, l=%d\n", s, l);///////////////////////t
             am.changeSTCParams(gen(), gen(), gen(), gen());
+            exit(0);///////////////////t
             m_vsm[s].m_vss[l].addAM(am, m_gc.Ns_sub);
             // printf("m_vsm[%d].m_vss[%d]  vam_num=%d\n", s, l, m_vsm[s].m_vss[l].m_vamNum[0]);////////
 	    // exit(0);////////////////////////t
