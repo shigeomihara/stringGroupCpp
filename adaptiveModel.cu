@@ -66,6 +66,7 @@ AdaptiveModel::AdaptiveModel(GlobalConstants gc)
 
 /*********************** 2026.10.14-- ************************************/
 void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
+    printf("changeSTCParams\n");////////////////////////t
     // if((r0>1.0 && r2<1.0) || (r0<1.0 && r2>1.0)) r2 = 2.0 - r2;
     // if((r1>1.0 && r3<1.0) || (r1<1.0 && r3>1.0)) r3 = 2.0 - r3;
     m_IscSTC *= r0;
@@ -74,7 +75,7 @@ void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
     // m_VmpSTC *= r3;
     m_ImpSTC *= (r0*(0.1*r2+0.9));
     m_VmpSTC *= (r1*(0.1*r3+0.9));
-    // printf("r0=%g, r1=%g, r2=%g, r3=%g\n", r0, r1, r2, r3);///////////////t
+    printf("r0=%g, r1=%g, r2=%g, r3=%g\n", r0, r1, r2, r3);///////////////t
     // printf("IscSTC=%g, VocSTC=%g, ImpSTC=%g, VmpSTC=%g\n",
     //        m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC);//////////////////////t
     m_STCParamsChanged = true;
@@ -122,7 +123,9 @@ void AdaptiveModel::setVars(){
 void AdaptiveModel::setVarsSTC(){
     m_PmaxSTC = m_ImpSTC*m_VmpSTC;
 
+    printf("before m_Isc=%g\n", m_Isc);////////////////////////t
     m_Isc = m_IscSTC*m_GpGSTC*(1.0+m_alphaSc*m_TmTSTC);
+    printf("after m_Isc=%g\n", m_Isc);////////////////////////t
     m_Voc = m_VocSTC/(1.0-m_deltaOc*m_lnGpGSTC)*(1.0+m_betaOc*m_TmTSTC);
     m_Vmp = m_VmpSTC*( 1.0/(1.0-m_deltaOc*m_lnGpGSTC) +m_betaOc*m_TmTSTC );
     double Pmax = m_PmaxSTC*m_GpGSTC/(1.0-m_deltaMp*m_lnGpGSTC)*(1.0+m_gammaMp*m_TmTSTC);
@@ -254,8 +257,8 @@ double AdaptiveModel::calcLM(){
             double etaTmp {m_eta+Delta[1]};
             // printf("lambda=%g, E=%g\n", lambda, calcE(RsTmp, etaTmp));//////////t
             if(RsTmp >= 0.0 && etaTmp > 0.0
-               && calcE(RsTmp, etaTmp) < E
                && calcRh(RsTmp, etaTmp) >= 0.0 ////////////2026.10.23
+               && calcE(RsTmp, etaTmp) < E
                ){
                 lambda *= 0.1;
                 break;
@@ -268,8 +271,8 @@ double AdaptiveModel::calcLM(){
         m_Rs += Delta[0];
         m_eta += Delta[1];
 
-        // printf("Rs=%g, eta=%g, DeltaRs=%g, DeltaEta=%g, lambda=%g, E=%g\n",
-        //        m_Rs, m_eta, Delta[0], Delta[1], lambda, calcE(m_Rs, m_eta));/////////////
+        printf("Rs=%g, eta=%g, DeltaRs=%g, DeltaEta=%g, lambda=%g, E=%g\n",
+               m_Rs, m_eta, Delta[0], Delta[1], lambda, calcE(m_Rs, m_eta));/////////////t
         if(Delta[0]*Delta[0]+Delta[1]*Delta[1] < 1.0e-5*(m_Rs*m_Rs+m_eta*m_eta)){
             break;
         }
@@ -279,12 +282,13 @@ double AdaptiveModel::calcLM(){
     
     // パラメータRh, I0, Iphの値設定
     m_Rh = calcRh(m_Rs, m_eta);
+    printf("calcLM Rh=%g\n", m_Rh);/////////////////////////////t
     m_I0 = calcI0(m_Rs, m_eta, m_Rh);
     m_Iph = calcIph(m_Rs, m_eta, m_Rh);
     E = calcE(m_Rs, m_eta);
 
-    // printf("AdaptiveModel::calcLM(): Emin=%g, Rs=%g, eta=%g, Rh=%g, I0=%g, Iph=%g\n",
-    //        E, m_Rs, m_eta, m_Rh, m_I0, m_Iph);/////////////////////t
+    printf("AdaptiveModel::calcLM(): Emin=%g, Rs=%g, eta=%g, Rh=%g, I0=%g, Iph=%g\n",
+           E, m_Rs, m_eta, m_Rh, m_I0, m_Iph);/////////////////////t
     return E; 
 }
     
@@ -296,16 +300,16 @@ double AdaptiveModel::calcLM(){
 double AdaptiveModel::calc(){
     if(m_STCParamsChanged){ //aaa
         printf("m_STCParamsChanged=%d,  m_Rs=%g\n", m_STCParamsChanged, m_Rs);///////////////////t
-        // SearchResultLM sr {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
-        //                    m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
-        //                    m_g, m_t, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-        // double minDist;
-        // int minIndex = m_gc.shLM.nearestSearchResult(sr, minDist);
-        // printf("minIndex=%d, minDist=%g\n", minIndex, minDist);///////////////////t
-        exit(0);
-        // m_Rs = 1.0e-10;  m_eta=1.6; /////////////////////////t
-	// return calcLM();
-        return 1.0;/////////////////////t
+        SearchResult sr {m_Isc, m_Voc, m_Imp, m_Vmp, m_Tkel, m_absA0, m_absB0,
+                         0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        double minDist;
+        int minIndex = m_gc.sh.nearestSearchResult(sr, minDist);
+        printf("minIndex=%d, minDist/5=%g\n", minIndex, minDist/5.0);///////////////////t
+        m_Rs = m_gc.sh.m_vsr[minIndex].Rs;
+        m_eta = m_gc.sh.m_vsr[minIndex].eta;
+        if(minDist < 0.003*5.0 && calcRh(m_Rs, m_eta) >= 0.0){
+            return calcLM();
+        }
     }
     
     SearchResult sr0 {m_Isc, m_Voc, m_Imp, m_Vmp, m_Tkel, m_absA0, m_absB0,
@@ -802,6 +806,7 @@ double AdaptiveModel::calcRh(double Rs, double eta) const{
 	       / ( (m_Isc-m_Imp)*exz +m_Imp*eyz -m_Isc ) ) - Rs;
     }
 
+    printf("calcRh: Rh=%g\n", Rh);/////////////////////////////t
     return Rh;
 }
 

@@ -16,20 +16,20 @@ SearchHistoryAM::SearchHistoryAM(bool haveGPU){
     readFile();
 }
 
-/***************** Constructor *****************************/
-SearchHistoryLM::SearchHistoryLM(){
-    readFile();
-}
+// /***************** Constructor *****************************/
+// SearchHistoryLM::SearchHistoryLM(){
+//     readFile();
+// }
 
 /***************** Destructor *****************************/
 SearchHistoryAM::~SearchHistoryAM(){
     saveFile();
 }
 
-/***************** Destructor *****************************/
-SearchHistoryLM::~SearchHistoryLM(){
-    saveFile();
-}
+// /***************** Destructor *****************************/
+// SearchHistoryLM::~SearchHistoryLM(){
+//     saveFile();
+// }
 
 /**********************************************************/
 void SearchHistoryAM::setSTCValues(float IscSTC, float VocSTC, float ImpSTC, float VmpSTC){
@@ -48,11 +48,18 @@ int SearchHistoryAM::haveSearchResult(SearchResult &sr){
 }
 
 /**********************************************************/
-int SearchHistoryLM::nearestSearchResult(SearchResultLM &sr, double &minAbsDist){
+double SearchHistoryAM::absDist(SearchResult &sr1, SearchResult &sr2){
+    return std::abs(sr1.Isc-sr2.Isc)/m_IscSTC_MD +std::abs(sr1.Voc-sr2.Voc)/m_VocSTC_MD
+        +std::abs(sr1.Imp-sr2.Imp)/m_ImpSTC_MD +std::abs(sr1.Vmp-sr2.Vmp)/m_VmpSTC_MD
+        +std::abs(sr1.Tkel-sr2.Tkel)/40.0;
+}
+
+/**********************************************************/
+int SearchHistoryAM::nearestSearchResult(SearchResult &sr, double &minAbsDist){
     double minDist {std::numeric_limits<double>::infinity()};
     int minIndex {-1};
     for(int i=0; i<m_vsr.size(); i++){
-	double dist {m_vsr[i].absDist(sr)};
+	double dist {absDist(sr, m_vsr[i])};
 	if(dist < minDist){
 	    minDist = dist;
 	    minIndex = i;
@@ -62,38 +69,46 @@ int SearchHistoryLM::nearestSearchResult(SearchResultLM &sr, double &minAbsDist)
     return minIndex;
 }
 
-/**********************************************************/
-void SearchHistoryLM::addSearchResult(SearchResultLM &sr){
-    for(int i=0; i<m_vsr.size(); i++){
-        if(m_vsr[i].absDist(sr)==0.0) return;
-    }
-    m_vsr.push_back(sr);
-}
+// /**********************************************************/
+// int SearchHistoryLM::nearestSearchResult(SearchResultLM &sr, double &minAbsDist){
+//     double minDist {std::numeric_limits<double>::infinity()};
+//     int minIndex {-1};
+//     for(int i=0; i<m_vsr.size(); i++){
+// 	double dist {m_vsr[i].absDist(sr)};
+// 	if(dist < minDist){
+// 	    minDist = dist;
+// 	    minIndex = i;
+// 	}
+//     }
+//     minAbsDist = minDist;
+//     return minIndex;
+// }
+
+// /**********************************************************/
+// void SearchHistoryLM::addSearchResult(SearchResultLM &sr){
+//     for(int i=0; i<m_vsr.size(); i++){
+//         if(m_vsr[i].absDist(sr)==0.0) return;
+//     }
+//     m_vsr.push_back(sr);
+// }
     
 
 /**********************************************************/
 bool SearchResult::equal(SearchResult &sr){
-    // printf("Isc=%g, sr.Isc=%g\n", Isc, sr.Isc);//////////////////////
     if(Isc==sr.Isc && Voc==sr.Voc && Imp==sr.Imp
        && Vmp==sr.Vmp && Tkel==sr.Tkel
-       && absA0==sr.absA0 && absB0==sr.absB0) return true;
-    else return false;
+       && absA0==sr.absA0 && absB0==sr.absB0){
+        printf("SearchResutl.equal() true: Isc=%g, sr.Isc=%g\n", Isc, sr.Isc);//////////////////////t
+        return true;
+    } else return false;
 }
 
-/*********************************************************/
-double SearchResult::absDist(SearchResult &sr){
-    return 0.0;//////////////////////t
-    // return std::abs(Isc-sr.Isc) + std::abs(rIscSTC-sr.rIscSTC)
-    //     + std::abs(rVmpSTC-sr.rVmpSTC) + std::abs(rImpSTC-sr.rImpSTC)
-    //     + std::abs(g-sr.g) + std::abs(t-sr.t);
-}
-
-/*********************************************************/
-double SearchResultLM::absDist(SearchResultLM &sr){
-    return std::abs(rVocSTC-sr.rVocSTC) + std::abs(rIscSTC-sr.rIscSTC)
-	+ std::abs(rVmpSTC-sr.rVmpSTC) + std::abs(rImpSTC-sr.rImpSTC)
-	+ std::abs(g-sr.g) + std::abs(t-sr.t);
-}
+// /*********************************************************/
+// double SearchResultLM::absDist(SearchResultLM &sr){
+//     return std::abs(rVocSTC-sr.rVocSTC) + std::abs(rIscSTC-sr.rIscSTC)
+// 	+ std::abs(rVmpSTC-sr.rVmpSTC) + std::abs(rImpSTC-sr.rImpSTC)
+// 	+ std::abs(g-sr.g) + std::abs(t-sr.t);
+// }
 
 /***************************************************************/
 void SearchHistoryAM::readFile(){
@@ -128,38 +143,39 @@ void SearchHistoryAM::readFile(){
     printf("SearchHistoryAM::readFile(), file '%s' read.\n",
 	   m_fileName.c_str());///////////////////
 }
-/***************************************************************/
-void SearchHistoryLM::readFile(){
-    std::fstream fs {m_fileName, std::ios_base::in};
-    if(!fs){
-	std::cout << "couldn't open '"<< m_fileName << "' for reading" << std::endl;
-	return;
-    }
 
-    std::string str;
-    while(std::getline(fs, str)){
-	std::vector<std::string> vStr = PCSData::splitString(str, ',');
+// /***************************************************************/
+// void SearchHistoryLM::readFile(){
+//     std::fstream fs {m_fileName, std::ios_base::in};
+//     if(!fs){
+// 	std::cout << "couldn't open '"<< m_fileName << "' for reading" << std::endl;
+// 	return;
+//     }
 
-	SearchResultLM sr;
-	sr.rVocSTC = stod(vStr[0]);
-	sr.rIscSTC = stod(vStr[1]);
-	sr.rVmpSTC = stod(vStr[2]);
-	sr.rImpSTC = stod(vStr[3]);
-	sr.g = stod(vStr[4]);
-	sr.t = stod(vStr[5]);
-	sr.Rs = stod(vStr[6]);
-	sr.eta = stod(vStr[7]);
-	sr.Iph = stod(vStr[8]);
-	sr.I0 = stod(vStr[9]);
-	sr.Rh = stod(vStr[10]);
-	sr.Emin = stod(vStr[11]);
+//     std::string str;
+//     while(std::getline(fs, str)){
+// 	std::vector<std::string> vStr = PCSData::splitString(str, ',');
 
-	m_vsr.push_back(sr);
-	m_fileLineNum++;
-    }
-    printf("SearchHistoryLM::readFile(), file '%s' read.\n",
-	   m_fileName.c_str());///////////////////
-}
+// 	SearchResultLM sr;
+// 	sr.rVocSTC = stod(vStr[0]);
+// 	sr.rIscSTC = stod(vStr[1]);
+// 	sr.rVmpSTC = stod(vStr[2]);
+// 	sr.rImpSTC = stod(vStr[3]);
+// 	sr.g = stod(vStr[4]);
+// 	sr.t = stod(vStr[5]);
+// 	sr.Rs = stod(vStr[6]);
+// 	sr.eta = stod(vStr[7]);
+// 	sr.Iph = stod(vStr[8]);
+// 	sr.I0 = stod(vStr[9]);
+// 	sr.Rh = stod(vStr[10]);
+// 	sr.Emin = stod(vStr[11]);
+
+// 	m_vsr.push_back(sr);
+// 	m_fileLineNum++;
+//     }
+//     printf("SearchHistoryLM::readFile(), file '%s' read.\n",
+// 	   m_fileName.c_str());///////////////////
+// }
 
 /***************************************************************/
 void SearchHistoryAM::saveFile(){
@@ -177,18 +193,18 @@ void SearchHistoryAM::saveFile(){
     printf("SearchHistoryAM::saveFile(), %zd lines added to file '%s'.\n", m_vsr.size()-m_fileLineNum, m_fileName.c_str());///////////////////
 }
 
-/***************************************************************/
-void SearchHistoryLM::saveFile(){
-    std::fstream fs {m_fileName, std::ios_base::app};
-    fs << std::scientific << std::setprecision(20);
+// /***************************************************************/
+// void SearchHistoryLM::saveFile(){
+//     std::fstream fs {m_fileName, std::ios_base::app};
+//     fs << std::scientific << std::setprecision(20);
 	
-    for(int i=m_fileLineNum; i<m_vsr.size(); i++){
-	fs << m_vsr[i].rVocSTC << ", " << m_vsr[i].rIscSTC << ", " << m_vsr[i].rVmpSTC << ", "
-	   << m_vsr[i].rImpSTC << ", " << m_vsr[i].g << ", " << m_vsr[i].t << ", "
-	   << m_vsr[i].Rs << ", " << m_vsr[i].eta << ", " << m_vsr[i].Iph
-	   << ", " << m_vsr[i].I0 << ", " << m_vsr[i].Rh << ", "
-	   << m_vsr[i].Emin <<std::endl; 
-    }
-    fs.close();
-    printf("SearchHistoryLM::saveFile(), %zd lines added to file '%s'.\n", m_vsr.size()-m_fileLineNum, m_fileName.c_str());///////////////////
-}
+//     for(int i=m_fileLineNum; i<m_vsr.size(); i++){
+// 	fs << m_vsr[i].rVocSTC << ", " << m_vsr[i].rIscSTC << ", " << m_vsr[i].rVmpSTC << ", "
+// 	   << m_vsr[i].rImpSTC << ", " << m_vsr[i].g << ", " << m_vsr[i].t << ", "
+// 	   << m_vsr[i].Rs << ", " << m_vsr[i].eta << ", " << m_vsr[i].Iph
+// 	   << ", " << m_vsr[i].I0 << ", " << m_vsr[i].Rh << ", "
+// 	   << m_vsr[i].Emin <<std::endl; 
+//     }
+//     fs.close();
+//     printf("SearchHistoryLM::saveFile(), %zd lines added to file '%s'.\n", m_vsr.size()-m_fileLineNum, m_fileName.c_str());///////////////////
+// }

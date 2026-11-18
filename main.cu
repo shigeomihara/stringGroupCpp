@@ -151,6 +151,7 @@ void stringGroupParamEstim2(GlobalConstants gc){
     printf("stringGroupParamEstim2\n");/////////////////////t
     StringGroup sg {gc, 1000.0, 25.0};
     sg.distSTCParams();
+    exit(0);///////////////////////////t
 
     // test searchHistoryLM////////////////t
     for(int s=0; s<sg.m_vsm.size(); s++){
