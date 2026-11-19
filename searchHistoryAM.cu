@@ -98,7 +98,7 @@ bool SearchResult::equal(SearchResult &sr){
     if(Isc==sr.Isc && Voc==sr.Voc && Imp==sr.Imp
        && Vmp==sr.Vmp && Tkel==sr.Tkel
        && absA0==sr.absA0 && absB0==sr.absB0){
-        printf("SearchResutl.equal() true: Isc=%g, sr.Isc=%g\n", Isc, sr.Isc);//////////////////////t
+        // printf("SearchResutl.equal() true: Isc=%g, sr.Isc=%g\n", Isc, sr.Isc);//////////////////////t
         return true;
     } else return false;
 }

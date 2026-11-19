@@ -86,7 +86,7 @@ ls:
 	powershell .\ls.ps1
 
 txt:
-	powershell get-content main.cu, PCSData.hh, PCSData.cu, HornerHara.hh, LambertWhara.hh, LambertWhara.cu, globalConstants.hh, adaptiveModel.hh, adaptiveModel.cu, bisection.hh, substring.hh, substring.cu, stringModel.hh, stringModel.cu, stringGroup.hh, stringGroup.cu  > program.txt
+	powershell get-content globalConstants.hh, globalConstants.cu, main.cu, PCSData.hh, PCSData.cu, HornerHara.hh, LambertWhara.hh, LambertWhara.cu, adaptiveModel.hh, adaptiveModel.cu, bisection.hh, substring.hh, substring.cu, stringModel.hh, stringModel.cu, stringGroup.hh, stringGroup.cu, myCalendar.hh, myCalendar.cu, searchHistoryAM.hh, searchHistoryAM.cu > program.txt
 
 dep: ${DEPS}
 

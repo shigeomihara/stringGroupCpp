@@ -97,7 +97,7 @@ private:
 
     // コンストラクタ、calcPCS()から呼び出される
     void setVars();
-    void setVarsSTC();
+    // void setVarsSTC();
     void calcA0B0();
     void setVarsGetE();
   

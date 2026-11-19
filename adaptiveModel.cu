@@ -39,10 +39,10 @@ AdaptiveModel::AdaptiveModel(double IscSTCC, double VocSTCC, double ImpSTCC, dou
  *  関数呼び出し：setVars, calcA0B0     ********************************************/
 AdaptiveModel::AdaptiveModel(GlobalConstants &gc, double GG, double TT,
 			     bool STCParamsChanged, bool doCalc)
-    :m_g{1.0}, m_t{1.0}, m_IscSTC{gc.IscSTC}, m_VocSTC{gc.VocSTC/gc.Ns},
+    :m_g{1.0}, m_t{0.0}, m_IscSTC{gc.IscSTC}, m_VocSTC{gc.VocSTC/gc.Ns},
      m_ImpSTC{gc.ImpSTC}, m_VmpSTC{gc.VmpSTC/gc.Ns},
      m_alphaSc{gc.alphaSc}, m_betaOc{gc.betaOc}, m_gammaMp{gc.gammaMp},
-     m_G{m_g*GG}, m_T{m_t*TT}, m_Ns{1}, m_gc{gc},
+     m_G{GG}, m_T{TT}, m_Ns{1}, m_gc{gc},
      m_STCParamsChanged{STCParamsChanged}{  // modified m_Ns{gc.Ns_sub}, Mar.4,2026
 
     setVars();
@@ -66,7 +66,7 @@ AdaptiveModel::AdaptiveModel(GlobalConstants gc)
 
 /*********************** 2026.10.14-- ************************************/
 void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
-    printf("changeSTCParams\n");////////////////////////t
+    // printf("changeSTCParams\n");////////////////////////t
     // if((r0>1.0 && r2<1.0) || (r0<1.0 && r2>1.0)) r2 = 2.0 - r2;
     // if((r1>1.0 && r3<1.0) || (r1<1.0 && r3>1.0)) r3 = 2.0 - r3;
     m_IscSTC *= r0;
@@ -75,12 +75,13 @@ void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
     // m_VmpSTC *= r3;
     m_ImpSTC *= (r0*(0.1*r2+0.9));
     m_VmpSTC *= (r1*(0.1*r3+0.9));
-    printf("r0=%g, r1=%g, r2=%g, r3=%g\n", r0, r1, r2, r3);///////////////t
+    // printf("r0=%g, r1=%g, r2=%g, r3=%g\n", r0, r1, r2, r3);///////////////t
     // printf("IscSTC=%g, VocSTC=%g, ImpSTC=%g, VmpSTC=%g\n",
     //        m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC);//////////////////////t
     m_STCParamsChanged = true;
 
-    setVarsSTC();
+    // setVarsSTC();
+    setVars();
     calcA0B0();
     calc();
     // m_Imax = getI(m_Vmin);
@@ -99,11 +100,11 @@ void AdaptiveModel::setVars(){
     m_eta0 = m_eta0init;
     m_eta1 = m_eta1init;
 
-    m_GpGSTC = m_G/1000.0;
+    m_GpGSTC = m_g*m_G/1000.0;
     m_lnGpGSTC = std::log(m_GpGSTC);
-    m_TmTSTC = m_T - 25.0;
+    m_TmTSTC = m_T +m_t - 25.0;
     m_PmaxSTC = m_ImpSTC*m_VmpSTC;
-    m_Tkel = m_T+273.15;
+    m_Tkel = m_T +m_t +273.15;
     double kT = 1.380649E-23*m_Tkel;
     m_NsVt = m_Ns*kT/1.602176634E-19;
 
@@ -119,18 +120,16 @@ void AdaptiveModel::setVars(){
     m_Imp = Pmax/m_Vmp;
 }    
 
-/************************* 2026.10.18-- **************************************/
-void AdaptiveModel::setVarsSTC(){
-    m_PmaxSTC = m_ImpSTC*m_VmpSTC;
+// /************************* 2026.10.18-- **************************************/
+// void AdaptiveModel::setVarsSTC(){
+//     m_PmaxSTC = m_ImpSTC*m_VmpSTC;
 
-    printf("before m_Isc=%g\n", m_Isc);////////////////////////t
-    m_Isc = m_IscSTC*m_GpGSTC*(1.0+m_alphaSc*m_TmTSTC);
-    printf("after m_Isc=%g\n", m_Isc);////////////////////////t
-    m_Voc = m_VocSTC/(1.0-m_deltaOc*m_lnGpGSTC)*(1.0+m_betaOc*m_TmTSTC);
-    m_Vmp = m_VmpSTC*( 1.0/(1.0-m_deltaOc*m_lnGpGSTC) +m_betaOc*m_TmTSTC );
-    double Pmax = m_PmaxSTC*m_GpGSTC/(1.0-m_deltaMp*m_lnGpGSTC)*(1.0+m_gammaMp*m_TmTSTC);
-    m_Imp = Pmax/m_Vmp;
-}    
+//     m_Isc = m_IscSTC*m_GpGSTC*(1.0+m_alphaSc*m_TmTSTC);
+//     m_Voc = m_VocSTC/(1.0-m_deltaOc*m_lnGpGSTC)*(1.0+m_betaOc*m_TmTSTC);
+//     m_Vmp = m_VmpSTC*( 1.0/(1.0-m_deltaOc*m_lnGpGSTC) +m_betaOc*m_TmTSTC );
+//     double Pmax = m_PmaxSTC*m_GpGSTC/(1.0-m_deltaMp*m_lnGpGSTC)*(1.0+m_gammaMp*m_TmTSTC);
+//     m_Imp = Pmax/m_Vmp;
+// }    
 
 /** A0, ,absA0, B0, absB0, eta00を計算する。コンストラクタから実行される  2024.1.8--
  *  入力：Voc, Isc, Vmp, Imp, NsVt, alphaSc, betaOc, gammaMp, Tkel, etad, W01, W02
@@ -271,8 +270,8 @@ double AdaptiveModel::calcLM(){
         m_Rs += Delta[0];
         m_eta += Delta[1];
 
-        printf("Rs=%g, eta=%g, DeltaRs=%g, DeltaEta=%g, lambda=%g, E=%g\n",
-               m_Rs, m_eta, Delta[0], Delta[1], lambda, calcE(m_Rs, m_eta));/////////////t
+        // printf("Rs=%g, eta=%g, DeltaRs=%g, DeltaEta=%g, lambda=%g, E=%g\n",
+        //        m_Rs, m_eta, Delta[0], Delta[1], lambda, calcE(m_Rs, m_eta));/////////////t
         if(Delta[0]*Delta[0]+Delta[1]*Delta[1] < 1.0e-5*(m_Rs*m_Rs+m_eta*m_eta)){
             break;
         }
@@ -282,7 +281,6 @@ double AdaptiveModel::calcLM(){
     
     // パラメータRh, I0, Iphの値設定
     m_Rh = calcRh(m_Rs, m_eta);
-    printf("calcLM Rh=%g\n", m_Rh);/////////////////////////////t
     m_I0 = calcI0(m_Rs, m_eta, m_Rh);
     m_Iph = calcIph(m_Rs, m_eta, m_Rh);
     E = calcE(m_Rs, m_eta);
@@ -299,7 +297,7 @@ double AdaptiveModel::calcLM(){
  *  戻り値：Emin (==INFINITYのときは、Rs, etaなどが設定されていないので注意）   *****/
 double AdaptiveModel::calc(){
     if(m_STCParamsChanged){ //aaa
-        printf("m_STCParamsChanged=%d,  m_Rs=%g\n", m_STCParamsChanged, m_Rs);///////////////////t
+        // printf("m_STCParamsChanged=%d,  m_Rs=%g\n", m_STCParamsChanged, m_Rs);///////////////////t
         SearchResult sr {m_Isc, m_Voc, m_Imp, m_Vmp, m_Tkel, m_absA0, m_absB0,
                          0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         double minDist;
@@ -806,7 +804,7 @@ double AdaptiveModel::calcRh(double Rs, double eta) const{
 	       / ( (m_Isc-m_Imp)*exz +m_Imp*eyz -m_Isc ) ) - Rs;
     }
 
-    printf("calcRh: Rh=%g\n", Rh);/////////////////////////////t
+    // printf("calcRh: Rh=%g\n", Rh);/////////////////////////////t
     return Rh;
 }
 

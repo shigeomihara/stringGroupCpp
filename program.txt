@@ -1,3 +1,94 @@
+/**************************************************************************
+ *        globalConstants.hh
+ ************************************************************************/
+#if !defined(__GLOBALCONSTANTS_HH)
+#define __GLOBALCONSTANTS_HH
+#include <string>
+#include "searchHistoryAM.hh"
+
+class GlobalConstants{
+public:
+    // ND240HA
+    float IscSTC {8.61};   // A
+    float VocSTC {37.05};   // V
+    float ImpSTC {8.16};   // A
+    float VmpSTC {29.42};   // V
+    const float alphaSc {0.00038};   // /degC
+    const float betaOc {-0.00329};   // /degC
+    const float gammaMp {-0.00440};   // /degC
+
+    // ND240HA
+    const float IscSTC_ND240HA {8.61};   // A
+    const float VocSTC_ND240HA {37.05};   // V
+    const float ImpSTC_ND240HA {8.16};   // A
+    const float VmpSTC_ND240HA {29.42};   // V
+
+    // ND265HD
+    const float IscSTC_ND265HD {8.70};   // A   ND265HD
+    const float VocSTC_ND265HD {37.91};   // V
+    const float ImpSTC_ND265HD {8.38};   // A
+    const float VmpSTC_ND265HD {31.63};   // V
+    
+    const int Ns {60};
+    const int Ns_sub {20};   // the number of cells in a substring
+    
+    const int S {84};   // the number of strings in a stringGroup
+    const int L {14*3};   // the number of substrings in a string
+
+    static const int K {4};   // ストリング群のパラメータ推定をする測定データ時間数
+
+    // search history of adaptive model
+    SearchHistoryAM sh;
+    // SearchHistoryLM shLM;
+
+    const double randSize {0.01};  // StringGroup::distSTCParams()
+    const double threshSearchResult {0.006};
+    
+    bool haveGPU {false};  // GPUを使わないときは、これをfalseにする
+
+    // Constructors
+    GlobalConstants(bool haveGPU);
+    GlobalConstants(bool haveGPU, std::string kataban);
+    
+    float getVocSTCss(){ return VocSTC*Ns_sub/Ns; }
+    float getVmpSTCss(){ return VmpSTC*Ns_sub/Ns; }
+};
+
+#endif
+// -*- C++ -*-
+/**************************************************************************
+ *        globalConstants.cu
+ ************************************************************************/
+#include <string>
+#include "globalConstants.hh"
+
+/************ コンストラクタ   ************/
+// GlobalConstants::GlobalConstants(bool haveGPU): sh{haveGPU}, shLM{}{
+GlobalConstants::GlobalConstants(bool haveGPU):
+    sh{haveGPU}{
+    this->haveGPU = haveGPU;
+    sh.setSTCValues(IscSTC, VocSTC, ImpSTC, VmpSTC);
+}
+
+GlobalConstants::GlobalConstants(bool haveGPU, std::string kataban)
+    //     sh{haveGPU}, shLM{}{
+    : sh{haveGPU}{
+    this->haveGPU = haveGPU;
+    
+    if(kataban == "ND240HA"){
+	IscSTC = IscSTC_ND240HA;
+	VocSTC = VocSTC_ND240HA;
+	ImpSTC = ImpSTC_ND240HA;
+	VmpSTC = VmpSTC_ND240HA;
+    }else if(kataban == "ND265HD"){
+	IscSTC = IscSTC_ND265HD;
+	VocSTC = VocSTC_ND265HD;
+	ImpSTC = ImpSTC_ND265HD;
+	VmpSTC = VmpSTC_ND265HD;
+    }
+
+    sh.setSTCValues(IscSTC, VocSTC, ImpSTC, VmpSTC);
+}
 // -*- C++ -*-
 /************************************************************************************
  *    main.cu
@@ -6,38 +97,42 @@
 #include <iomanip>  // setprecision
 #include <chrono>
 #include <ctime>
+#if !defined(UBUNTU)
 #include <cuda_runtime.h>
+#endif
 #include <fstream>
 #include <ios>
 
-#include "PCSData.hh"
-#include "adaptiveModel.hh"  /////////////////t
-// #include "LambertWhara.hh"
 #include "globalConstants.hh"
+#include "PCSData.hh"
+// #include "adaptiveModel.hh"  /////////////////t
+// #include "LambertWhara.hh"
 // #include "substring.hh"  ///////////////////t
 // #include "stringModel.hh"
-#include "stringGroup.hh"
+// #include "stringGroup.hh"
 
 /**************************************************/
 void stringGroupParamEstim(GlobalConstants gc);
+void stringGroupParamEstim2(GlobalConstants gc);
 
 /*****************************   ***************************************/
 int main(void){
-    GlobalConstants gc;
+    bool haveGPU {false};
     
+#if !defined(UBUNTU)
     // GPU information
     cudaDeviceProp prop;
   
     cudaError_t cudaError = cudaGetDeviceProperties(&prop, 0);
     if(cudaError == cudaSuccess){
 	std::cout << "This PC has a GPU !" << std::endl;
-	gc.haveGPU = true;
+	haveGPU = true;
     }else{
 	std::cout << "This PC has no GPU !" << std::endl;
-	gc.haveGPU = false;
+	haveGPU = false;
     }
 
-    if(gc.haveGPU){
+    if(haveGPU){
 	std::cout << "# Device: " << prop.name << std::endl;
 	std::cout << "#   totalGlobalMem: " << prop.totalGlobalMem << std::endl;
 	std::cout << "#   multiProcessorCount: " << prop.multiProcessorCount << std::endl;
@@ -45,76 +140,155 @@ int main(void){
 	std::cout << "#   maxThreadsPerMultiProcessor: " << prop.maxThreadsPerMultiProcessor << std::endl;
 	std::cout << "#   maxThreadsPerBlock: " << prop.maxThreadsPerBlock << std::endl;
     }
-
+#endif
+    
+    GlobalConstants gc(haveGPU);
+    
     auto start = std::chrono::system_clock::now();
     std::cout << std::setprecision(20); //////////////////t
 
-    float G {1000.0};
-    float Tdeg {25.0};
+    // PCSData pd(gc);
+    // SimPCSData spd;
+    // // pd.readFile("Dat/GTIVTime201905.dat");
+    // pd.readFile("Dat/GTIVTime201905G03.dat");
+    // pd.makeSimPCSData05(spd);
+    // // pd.makeSimPCSData05Iph(spd);
+
+    stringGroupParamEstim2(gc);
+    
+    // AdaptiveModel am(gc, 1000.0, 25.0, true);
+    // am.calc();
 
     // gc.haveGPU = false;///////////////////////////
     
     // AdaptiveModel am(gc, G, Tdeg);
+    // am.set5params(0.1, am.getEta(), am.getRh()*0.01, am.getI0(),
+    // 		  am.getIph()*0.5);
 
     // std::fstream fs {"Graphs/am_IV.dat", std::ios_base::out};
     // for(double V=-0.5; V <= 0.8; V += 0.01){
     // 	fs << std::scientific << std::setprecision(20);
     // 	fs << "V= " << V << " ,I= " << am.getI(V) << std::endl;
     // }
+    // // for(double I=-1.0; I < am.getImax(); I += 0.01){
+    // // 	fs << std::scientific << std::setprecision(20);
+    // // 	fs << "V= " << am.getV(I) << " ,I= " << I << std::endl;
+    // // }
     // fs.close();
 
-    Substring ss(gc, G, Tdeg);
-    double X[4]={gc.IscSTC*0.8, gc.VocSTC/gc.Ns, 0.7, 0.8};
-    ss.addAM(X, 10);
-    double XX[4]={gc.IscSTC, gc.VocSTC/gc.Ns*0.8, 0.8, 0.8};
-    ss.addAM(XX, 5);
+    // Substring ss(gc, G, Tdeg);
+    // // double X[4]={gc.IscSTC*0.8, gc.VocSTC/gc.Ns, 0.7, 0.8};
+    // // double X[4]={gc.IscSTC*0.5, gc.VocSTC/gc.Ns, gc.ImpSTC/gc.IscSTC,
+    // // 		 gc.VmpSTC/gc.VocSTC};
+    // // ss.addAM(X, 20);
+    // ss.addAM(am, 10);
 
-    std::fstream fs {"Graphs/ss_IV.dat", std::ios_base::out};
-    // for(double I=-1.0; I <= 10.0; I += 0.01){
-    // 	fs << std::scientific << std::setprecision(20);
-    // 	fs << "V= " << ss.getV(I) << " ,I= " << I << std::endl;
+    // std::fstream fs_ss {"Graphs/ss_IV.dat", std::ios_base::out};
+    // // for(double I=-1.0; I <= 10.0; I += 0.01){
+    // // 	fs_ss << std::scientific << std::setprecision(20);
+    // // 	fs_ss << "V= " << ss.getV(I) << " ,I= " << I << std::endl;
+    // // }
+    // // fs_ss.close();
+    // for(double V=-1.0; V <= 15.0; V += 0.01){
+    // 	fs_ss << std::scientific << std::setprecision(20);
+    // 	fs_ss << "V= " << V << " ,I= " << ss.getI(V) << std::endl;
     // }
-    // fs.close();
-    for(double V=-1.0; V <= 15.0; V += 0.01){
-	fs << std::scientific << std::setprecision(20);
-	fs << "V= " << V << " ,I= " << ss.getI(V) << std::endl;
-    }
-    fs.close();
+    // fs_ss.close();
     
     // StringModel sm(gc, G, Tdeg);
+    // sm.addSS(ss, 3*7);
 
     // std::fstream fs {"Graphs/sm_IV.dat", std::ios_base::out};
     // // for(double I=-1.0; I <= 12.0; I += 0.01){
     // // 	fs << std::scientific << std::setprecision(20);
     // // 	fs << "V= " << sm.getV(I) << " ,I= " << I << std::endl;
     // // }
-    // for(double V=-23.0; V <= 550.0; V += 0.1){
+    // for(double V=sm.getV(20.0); V <= sm.getV(-sm.getIb0()*0.9); V += 0.1){
     // 	fs << std::scientific << std::setprecision(20);
     // 	fs << "V= " << V << " ,I= " << sm.getI(V) << std::endl;
     // }
     // fs.close();
     
     // StringGroup sg(gc, G, Tdeg);
+    // // sg.addSM(sm, 40);
 
-    // std::fstream fs {"Graphs/sg_IV.dat", std::ios_base::out};
-    // for(double I=sg.getImin(); I <= sg.getImax(); I += 1.0){
-    // 	fs << std::scientific << std::setprecision(20);
-    // 	fs << "V= " << sg.getV(I) << " ,I= " << I << std::endl;
-    // }
-    // // for(double V=sg.getVmin(); V <= sg.getVmax(); V += 1.0){
+    // double Vmp, Imp;
+    // double Pmax = sg.getPmax(Vmp, Imp);
+    // printf("StringGroup Vmp=%g, Imp=%g, Pmax=%g\n", Vmp, Imp, Pmax);
+
+    // // std::fstream fs {"Graphs/sg_IV.dat", std::ios_base::out};
+    // std::fstream fs {"Graphs/sg_PV.dat", std::ios_base::out};
+    // // for(double I=sg.getImin(); I <= sg.getImax(); I += 1.0){
+    // // 	fs << std::scientific << std::setprecision(20);
+    // // 	fs << "V= " << sg.getV(I) << " ,I= " << I << std::endl;
+    // // }
+    // // for(double V=sg.getVmin(); V <= sg.getVmax()*1.2; V += 1.0){
     // // 	fs << std::scientific << std::setprecision(20);
     // // 	fs << "V= " << V << " ,I= " << sg.getI(V) << std::endl;
     // // }
-    // // fs.close();
-
+    // for(double V=sg.getVmin(); V <= sg.getVmax()*1.2; V += 1.0){
+    // 	fs << std::scientific << std::setprecision(20);
+    // 	fs << "V= " << V << " ,P= " << sg(V) << std::endl;
+    // }
+    // fs.close();
+    
     auto end = std::chrono::system_clock::now();
     auto nanosec = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count();
     std::cout << "# Execution time of AdaptiveModel.calc()= " << nanosec/1.0E9 << " sec" << std::endl;
 }
 
+/************** 2026.10.11-- ******************/
+void stringGroupParamEstim2(GlobalConstants gc){
+    printf("stringGroupParamEstim2\n");/////////////////////t
+    StringGroup sg {gc, 1000.0, 25.0};
+    sg.distSTCParams();
+    exit(0);///////////////////////////t
+
+    // test searchHistoryLM////////////////t
+    for(int s=0; s<sg.m_vsm.size(); s++){
+        for(int l=0; l<sg.m_vsm[s].m_vss.size(); l++){
+            AdaptiveModel& ad = sg.m_vsm[s].m_vss[l].m_vam[0];
+            // SearchResultLM sr {ad.getVocSTC()*gc.Ns/gc.VocSTC, ad.getIscSTC()/gc.IscSTC,
+            //                    ad.getVmpSTC()*gc.Ns/gc.VmpSTC, ad.getImpSTC()/gc.ImpSTC,
+            //                    ad.get_g(), ad.get_t(),
+            //                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+	    // double minAbsDist;
+	    // int minIndex = gc.shLM.nearestSearchResult(sr, minAbsDist);
+	    // printf("s=%d, l=%d, minIndex=%d, minAbsDist=%g\n", s, l, minIndex, minAbsDist);////////////////////////t
+            // if(minAbsDist != 0.0) gc.shLM.m_vsr.push_back(sr);
+        }
+    }
+    // gc.shLM.saveFile();
+    // exit(0);///////////////////t
+    
+    // PCSData pd(gc);
+    // // pd.readFileSim("Dat/GTIVTimeSim_201905_Iph_2.dat");
+    // pd.readFileSim("Dat/GTIVTimeSim3Days.dat");  // Rs
+
+    // double G[GlobalConstants::K], T[GlobalConstants::K];
+    // double I[GlobalConstants::K], V[GlobalConstants::K];
+    // std::string Time[GlobalConstants::K];
+
+    // for(int i=0; i<=pd.G.size()-gc.K; i+=gc.K){
+    //     for(int k=0; k<gc.K; k++){
+    //         G[k] = pd.G[i+k];
+    //         T[k] = pd.T[i+k];
+    //         I[k] = pd.I[i+k];
+    //         V[k] = pd.V[i+k];
+    //         Time[k] = pd.Time[i+k];
+	    
+    //         printf("k=%d, %s G=%g, T=%g, I=%g, V=%g\n", k, Time[k].c_str(), G[k], T[k], I[k], V[k]);//////////t
+    //     }
+	
+    //     sg.paramEstim2(G, T, I, V, Time);
+	
+    //     break;////////////////////t
+    // }	
+}
+
 /**************  ******************/
 void stringGroupParamEstim(GlobalConstants gc){
-    PCSData pd;
+    PCSData pd(gc);
     pd.readFile();
     pd.averageGTIV();
 
@@ -147,10 +321,25 @@ void stringGroupParamEstim(GlobalConstants gc){
 #define __PCS_DATA_HH
 
 #include <vector>
+#include "globalConstants.hh"
+#include "stringGroup.hh"
+#include "myCalendar.hh"
+
+struct SimPCSData{
+    std::vector<double> G;
+    std::vector<double> T;
+    std::vector<double> I;
+    std::vector<double> V;
+    std::vector<std::string> Time;
+};
 
 class PCSData{
 private:
-public:
+    GlobalConstants &m_gc;
+    int getThisDayFinalNum(int n);
+    bool isBetween(MyCalendar cal, MyCalendar calStart[], MyCalendar calEnd[], int size);
+ public:
+    PCSData(GlobalConstants &gc);
     std::vector<double> G;
     std::vector<double> T;
     std::vector<double> I;
@@ -158,10 +347,18 @@ public:
     std::vector<std::string> Time;
     
     void readFile();
+    void readFile(std::string fileName);
+    void readFileSim(std::string fileName);
     
     void averageGTIV();
+    void makeSimPCSDataPmax(SimPCSData &sd);
+    void makeSimPCSData05(SimPCSData &sd);
+    void makeSimPCSData05Iph(SimPCSData &sd);
+    void addFault(StringGroup &sg, const double G, const double T);
+    void deployFaultCells(StringGroup &sg, double rate, const double G, const double T);
+    void getRandomTimes(MyCalendar myCal[]);
     
-    std::vector<std::string> splitString(std::string str, char c);
+    static std::vector<std::string> splitString(std::string str, char c);
 };
 
 #endif
@@ -173,13 +370,64 @@ public:
 #include <fstream>
 #include <string>
 #include "PCSData.hh"
+#include "randDouble.hh"
+#include <cmath>
+#include <sstream>
+#include "myCalendar.hh"
+
+/*************** Constructor *************************/
+PCSData::PCSData(GlobalConstants &gc): m_gc(gc){
+}
 
 void PCSData::readFile(){
-    // std::cout << "readFile" << std::endl;
+    readFile("Dat/GTIVTime.dat");
+}
 
-    std::fstream ifs {"GTIVTime.dat", std::ios_base::in};
+/*************** 2026.10.11-- ***************************/
+void PCSData::readFileSim(std::string fileName){
+    std::fstream ifs {fileName, std::ios_base::in};
     if(!ifs){
-	std::cout << "couldn't open 'GTVITime.dat' for reading" << std::endl;
+	std::cout << "couldn't open '" << fileName << "' for reading" << std::endl;
+	exit(-1);
+    }
+
+    std::string str;
+
+    // read pass one line
+    std::getline(ifs, str);
+    std::cout << str << std::endl;
+    
+    while(std::getline(ifs, str)){
+	// std::cout << str << std::endl;
+
+	std::vector<std::string> vStr = splitString(str, ',');
+
+	for(int i=0; i<vStr.size(); i++){
+	    // std::cout << vStr[i] << " ";
+	    double Ii = stod(vStr[5]);
+	    double Vi = stod(vStr[6]);
+	    if(Ii < 10.0 || Vi < 10.0) continue;  // I==0, V==0のことがあるので、読み飛ばす
+
+	    // if(i==1) G.push_back(stod(vStr[i])*1000.0);   // W/m^2単位にする
+	    if(i==1) G.push_back(stod(vStr[i]));
+	    else if(i==2) T.push_back(stod(vStr[i])); 
+	    else if(i==5) I.push_back(Ii); 
+	    else if(i==6) V.push_back(Vi); 
+	    else if(i==0) Time.push_back(vStr[i]); 
+	}
+	// std::cout << std::endl;
+    }
+
+    // for(int i=0; i<G.size(); i++){
+    // 	std::cout << i << " " << G[i] << " " << T[i] << " " << I[i] << " " << V[i] << " " << Time[i] << std::endl;
+    // }
+}
+
+/***************************************************/
+void PCSData::readFile(std::string fileName){
+    std::fstream ifs {fileName, std::ios_base::in};
+    if(!ifs){
+	std::cout << "couldn't open '" << fileName << "' for reading" << std::endl;
 	exit(-1);
     }
 
@@ -289,6 +537,294 @@ void PCSData::averageGTIV(){
     I = Iave;
     V = Vave;
     Time = TimeAve;
+}
+
+/******************************* Apr. 9, 2026-- ******************************/
+void PCSData::makeSimPCSDataPmax(SimPCSData &sd){
+    std::fstream fs {"Dat/GTIVTimeSim.dat", std::ios_base::out};
+    fs << std::scientific << std::setprecision(20);
+
+    RandDouble rand(0.0, 1.0);
+    for(int i=0; i<10; i++){
+	printf("%f\n", rand());
+    }
+    exit(0);
+    
+    StringGroup sg(m_gc, 1000.0, 25.0);
+    AdaptiveModel* p_am = nullptr;
+
+    std::string timeEvent {"2019/5/7/12:0"};
+    // std::string timeEvent {"2019/5/7/9:5"};
+    bool beforeEvent {true};
+    for(int n=0; n<G.size(); n++){
+	printf("%s\n", Time[n].c_str());///////////////////////////
+	
+	sg.setGT(G[n], T[n]);
+	exit(0);///////////////////////////////
+	
+	if(beforeEvent && Time[n]==timeEvent){
+	    beforeEvent = false;
+	    addFault(sg, G[n], T[n]);
+
+	    p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
+	}
+	
+	if(beforeEvent == false){
+	    p_am->set5params(10.0, p_am->getEta(), p_am->getRh(), p_am->getI0(),
+			     p_am->getIph());
+	    // p_am->set5params(0.1, p_am->getEta(), p_am->getRh(), p_am->getI0(),
+	    // 		     p_am->getIph());
+	    sg.refreshMaxMin();
+	    // printf("am.Rs=%g\n", p_am->getRs());///////////////////
+	}
+	
+	double VmpSim, ImpSim;
+	sg.getPmax(VmpSim, ImpSim);
+
+	fs << G[n] << ", " << T[n] << ", " << I[n] << ", " << V[n]
+	   << ", " << Time[n] << ", " << ImpSim << ", " << VmpSim << std::endl;
+
+	// if(n==10) break; //////////////////////////////////
+    }
+    fs.close();
+    printf("file 'Dat/GTIVTimeSim.dat' saved.\n");////////////////////////
+}
+
+/******************************* Jul. 30, 2026-- ******************************/
+void PCSData::makeSimPCSData05Iph(SimPCSData &sd){
+    std::fstream fs {"Dat/GTIVTimeSim.dat", std::ios_base::out};
+    fs << std::scientific << std::setprecision(20);
+
+    StringGroup sg(m_gc, 1000.0, 25.0);
+    AdaptiveModel* p_am = nullptr;
+
+    // deployFaultCells(sg, 0.5, 1000.0, 25.0);
+    deployFaultCells(sg, 0.1, 1000.0, 25.0);
+    p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
+
+    stringstream ss {};
+    ss << std::scientific << std::setprecision(10);
+
+    ss << "Time, Gmeas, Tmeas, Imeas, Vmeas, ImpSim, VmpSim, IphSim, 0or1\n";
+    fs << ss.str();
+    std::cout << ss.str();
+    
+    MyCalendar myCal;
+
+    int n {0};  // current GTIVTime number
+    while(true){
+        int n1 {getThisDayFinalNum(n)};
+        if(n1==0) break;
+        // printf("n1=%d\n", n1);
+
+        MyCalendar myCal[10];
+        for(int i=0; i<10; i++) myCal[i].set(Time[n]);
+        getRandomTimes(myCal);
+
+        MyCalendar myCalEnd[10];
+        for(int i=0; i<10; i++){
+            myCalEnd[i].set(myCal[i]);
+            myCalEnd[i].addMin(15);
+            // myCal[i].print();//////////////////
+            // myCalEnd[i].print();//////////////////
+        }
+
+        MyCalendar cal;
+        double IphSim;
+        int zeroOne;
+        for( ; n<=n1 ; n++){
+            sg.setGT(G[n], T[n]);
+            IphSim = p_am->getIph();
+            
+            cal.set(Time[n]);
+            
+            if(isBetween(cal, myCal, myCalEnd, 10)){
+                // printf("%s 1\n", Time[n].c_str());
+                zeroOne = 1;
+                IphSim *= 0.5;
+            }else{
+                // printf("%s 0\n", Time[n].c_str());
+                zeroOne = 0;
+            }
+
+            p_am->set5params(p_am->getRs(), p_am->getEta(), p_am->getRh(), p_am->getI0(),
+			     IphSim);
+            sg.refreshMaxMin();
+	
+            double VmpSim, ImpSim;
+            sg.getPmax(VmpSim, ImpSim);
+
+            ss.str("");  // clear ss
+            ss << Time[n] << ", " << G[n] << ", " << T[n] << ", " << I[n] << ", " << V[n]
+               << ", " << ImpSim << ", " << VmpSim << ", " << IphSim << ", " << zeroOne << std::endl;
+            fs << ss.str();
+            std::cout << ss.str();
+        }
+
+        if(n >= G.size()-1) break;
+    }
+    
+    fs.close();
+    printf("file 'Dat/GTIVTimeSim.dat' saved.\n");////////////////////////
+}
+
+/*************************************************************/
+bool PCSData::isBetween(MyCalendar cal, MyCalendar calStart[], MyCalendar calEnd[], int size){
+    for(int i=0; i<size; i++){
+        if(cal.after(calStart[i]) && cal.before(calEnd[i])) return true;
+    }
+    return false;
+}
+
+/******************************* Jul. 30, 2026-- ******************************/
+void PCSData::getRandomTimes(MyCalendar myCal[]){
+    RandDouble rand(0.0, 1.0);
+    double r[11], s[11], hour[11];
+    
+    for(int i=0; i<=10; i++){
+        r[i] = rand();
+        // printf("r[%d]=%f\n", i, r[i]);
+    }
+
+    s[0] = r[0];
+    for(int i=1; i<=10; i++){
+        s[i] = s[i-1]+r[i];
+        // printf("s[%d]=%f\n", i, s[i]);
+    }
+
+    for(int i=0; i<=10; i++){
+        hour[i] = s[i]/s[10]*7.0;  // １６時ー９時＝７時間
+    }
+
+    for(int i=0; i<10; i++){
+        myCal[i].set(9, 0);
+        myCal[i].addHour(hour[i]);
+        // myCal[i].print();
+    }
+    
+}
+
+/******************************* Jul. 30, 2026-- ******************************/
+int PCSData::getThisDayFinalNum(int n){
+    MyCalendar myCal(Time[n]);
+    MyCalendar myCal1;
+
+    for(int i=n+1; i<G.size(); i++){
+        myCal1.set(Time[i]);
+        if(myCal1.tm_mday != myCal.tm_mday) return i-1;
+    }
+    return 0;
+}
+
+/******************************* Jul. 16, 2026-- ******************************/
+void PCSData::makeSimPCSData05(SimPCSData &sd){
+    std::fstream fs {"Dat/GTIVTimeSim.dat", std::ios_base::out};
+    fs << std::scientific << std::setprecision(20);
+
+    StringGroup sg(m_gc, 1000.0, 25.0);
+    AdaptiveModel* p_am = nullptr;
+
+    deployFaultCells(sg, 0.7, 1000.0, 25.0);
+    p_am = &(sg.m_vsm[0].m_vss[0].m_vam[0]);
+
+    double finalRate {100.0};
+    // double rate {std::exp(std::log(finalRate)/G.size())};
+    // double rate {std::exp(std::log(finalRate)/(60*7*3))}; // ３日で繰り返す
+    double rate {std::exp(std::log(finalRate)/(60*7*1))}; // 1日で繰り返す
+    // printf("rate=%g, pow(rate, N)=%g\n", rate, std::pow(rate, G.size()));
+
+    stringstream ss {};
+    ss << std::scientific << std::setprecision(10);
+
+    ss << "Time, Gmeas, Tmeas, Imeas, Vmeas, ImpSim, VmpSim, Rs, RsSim, mul\n";
+    fs << ss.str();
+    std::cout << ss.str();
+
+    // tmporary
+    int nTest {9301};
+    int nTest1 {11000};
+    
+    double mul {1.0};
+    bool ikkai {false};
+    for(int n=0; n<G.size(); n++){
+	// printf("%s\n", Time[n].c_str());///////////////////////////
+	sg.setGT(G[n], T[n]);
+
+	double Rs {p_am->getRs()};
+	double RsSim {Rs*mul};
+	p_am->set5params(RsSim, p_am->getEta(), p_am->getRh(), p_am->getI0(),
+			     p_am->getIph());
+	sg.refreshMaxMin();
+	
+	double VmpSim, ImpSim;
+	sg.getPmax(VmpSim, ImpSim);
+
+	ss.str("");  // clear ss
+	ss << Time[n] << ", " << G[n] << ", " << T[n] << ", " << I[n] << ", " << V[n]
+	   << ", " << ImpSim << ", " << VmpSim << ", " << Rs << ", " << RsSim
+	   << ", " << mul << std::endl;
+	fs << ss.str();
+	std::cout << ss.str();
+
+        if(n<nTest){
+            mul *= rate;
+            if (mul >= 100) mul = 1.0;
+        }else{
+            if(n>=nTest1 && ikkai==false){
+                mul *= rate;
+                if (mul >= 100){
+                    mul = 1.0;
+                    ikkai = true;
+                }
+            }else{
+                mul = 1.0;
+            }
+        }
+            
+	// if(n==10) break; //////////////////////////////////
+    }
+    fs.close();
+    printf("file 'Dat/GTIVTimeSim.dat' saved.\n");////////////////////////
+}
+
+/***************** Jul. 22, 2026-- ************************/
+void PCSData::deployFaultCells(StringGroup &sg, double rate, const double G, const double T){
+    double x {pow(rate, 1.0/3.0)};
+    int faultStringNum {static_cast<int>(m_gc.S*x)};
+    int faultSubstringNum {static_cast<int>(m_gc.L*x)};
+    int faultCellNum {static_cast<int>(m_gc.Ns_sub*x)};
+    // printf("x=%g, faultStringNum=%d, faultSubstringNum=%d, faultCellNum=%d, \n",
+    //        x, faultStringNum, faultSubstringNum, faultCellNum);
+
+    AdaptiveModel am(m_gc, G, T);
+    Substring ss(m_gc, G, T);
+    ss.addAM(am, faultCellNum);
+    StringModel sm(m_gc, G, T);
+    sm.addSS(ss, faultSubstringNum);
+    sg.addSM(sm, faultStringNum);
+}
+
+/****************************************************************/
+void PCSData::addFault(StringGroup &sg, const double G, const double T){
+    AdaptiveModel am(m_gc, G, T);
+    Substring ss(m_gc, G, T);
+    ss.addAM(am, 1);
+    StringModel sm(m_gc, G, T);
+    sm.addSS(ss, 1);
+    sg.addSM(sm, 1);
+
+    // // Broken or deteriorated cells, substrings, strings
+    // AdaptiveModel am(m_gc, G, T);
+    // Substring ss(m_gc, G, T);
+    // ss.addAM(am, 10);
+    // StringModel sm(m_gc, G, T);
+    // sm.addSS(ss, 3*7);
+    
+    // sg.addSM(sm, 20);
+
+    // AdaptiveModel &amx {sg.m_vsm[0].m_vss[0].m_vam[0]};
+    // amx.set5params(0.1, amx.getEta(), amx.getRh(), amx.getI0(),
+    // 		   amx.getIph());
 }
 
 /********    文字列strを文字cで分割する 連続したcはひとつとみなす    ***************/
@@ -401,42 +937,43 @@ namespace utl {
 #ifndef _utl_LambertWhara_h_
 #define _utl_LambertWhara_h_
 
+#include <cmath>
 #include "HornerHara.hh"
 
 namespace utl {
     double LambertW0haraAexp(const double a, const double x);
     
-    template<typename Float, int n> struct Pade {
-	static inline Float Approximation(const Float x);
+    template<typename Double, int n> struct Pade {
+	static inline Double Approximation(const Double x);
     };
 
-    template<typename Float> struct Pade<Float, 1>{
-	static inline Float Approximation(const Float x){
-	    return x * HORNER4(Float, x, 0.07066247420543414, 2.4326814530577687, 6.39672835731526, 4.663365025836821, 0.99999908757381) /
-		HORNER4(Float, x, 1.2906660139511692, 7.164571775410987, 10.559985088953114, 5.66336307375819, 1);
+    template<typename Double> struct Pade<Double, 1>{
+	static inline Double Approximation(const Double x){
+	    return x * HORNER4(Double, x, 0.07066247420543414, 2.4326814530577687, 6.39672835731526, 4.663365025836821, 0.99999908757381) /
+		HORNER4(Double, x, 1.2906660139511692, 7.164571775410987, 10.559985088953114, 5.66336307375819, 1);
 	}
     };
 
-    template<typename Float> struct Pade<Float, 2>{
-	static inline Float Approximation(const Float x){
-	    const Float y = log(Float(0.5)*x) - 2;
-	    return 2 + y * HORNER3(Float, y, 0.00006979269679670452, 0.017110368846615806, 0.19338607770900237, 0.6666648896499793) /
-		HORNER2(Float, y, 0.0188060684652668, 0.23451269827133317, 1);
+    template<typename Double> struct Pade<Double, 2>{
+	static inline Double Approximation(const Double x){
+	    const Double y = std::log(Double(0.5)*x) - 2;
+	    return 2 + y * HORNER3(Double, y, 0.00006979269679670452, 0.017110368846615806, 0.19338607770900237, 0.6666648896499793) /
+		HORNER2(Double, y, 0.0188060684652668, 0.23451269827133317, 1);
 	}
     };
 
     class BranchPoint { };
 
-    template<typename Float> class Branch{
+    template<typename Double> class Branch{
     public:
-	template<int order> static Float AsymptoticExpansionAexp(const Float a, const Float x);
+	template<int order> static Double AsymptoticExpansionAexp(const Double a, const Double x);
     };
 
-    template<typename Float> inline Float HalleyStep(const Float x, const Float w);
+    template<typename Double> inline Double HalleyStep(const Double x, const Double w);
 
-    template<typename Float> inline Float HalleyStepAexp(const Float a, const Float y, const Float w);
+    template<typename Double> inline Double HalleyStepAexp(const Double a, const Double y, const Double w);
 
-    template<typename Float, int order> inline Float AsymptoticExpansionImpl(const Float a, const Float b);
+    template<typename Double, int order> inline Double AsymptoticExpansionImpl(const Double a, const Double b);
     
     template<unsigned int order> class AsymptoticPolynomialB { };
     class AsymptoticPolynomialA { };
@@ -450,10 +987,11 @@ namespace utl {
 #include "HornerHara.hh"
 #include "LambertWhara.hh"
 #include <iostream> ///////////count
+#include <cmath>
 
 namespace utl {
-    double log1p38 = log(1.38);
-    double log236 = log(236.0);
+    double log1p38 = std::log(1.38);
+    double log236 = std::log(236.0);
     
     // S.Hara Feb. 18, 2024--
     // return W(a*exp(x)),  a>0
@@ -463,15 +1001,15 @@ namespace utl {
 	double w {0.0};
 	double wNext {0.0};
 
-	double xPlusLogA {x + log(a)};
+	double xPlusLogA {x + std::log(a)};
 	double aExpX;
 	
 	if(xPlusLogA < log1p38){
-	    aExpX = a*exp(x);
+	    aExpX = a*std::exp(x);
 	    if(aExpX == 0.0) return 0.0;    // S.Hara
 	    w = Pade<double, 1>::Approximation(aExpX);
 	}else if(xPlusLogA < log236){
-	    aExpX = a*exp(x);
+	    aExpX = a*std::exp(x);
 	    w = Pade<double, 2>::Approximation(aExpX);
 	}else{
 	    w = Branch<double>::AsymptoticExpansionAexp<5>(a, x);
@@ -488,8 +1026,8 @@ namespace utl {
 	if(xPlusLogA < log236){
 	    while(true){
 		wNext = HalleyStep<double>(aExpX, w);
-		// if(abs(wNext-w)<1.0E-12) break;
-		if(abs(wNext-w)<=1.0E-10*abs(w)) break;
+		// if(std::abs(wNext-w)<1.0E-12) break;
+		if(std::abs(wNext-w)<=1.0E-10*std::abs(w)) break;
 
 		// count++;////////////////////////////t
 		// if(count%1000==0){
@@ -507,8 +1045,8 @@ namespace utl {
 		//     exit(0);
 		// }
 		
-		// if(abs(wNext-w)<1.0E-10) break;
-		if(abs(wNext-w)<=1.0E-10*abs(w)) break;
+		// if(std::abs(wNext-w)<1.0E-10) break;
+		if(std::abs(wNext-w)<=1.0E-10*std::abs(w)) break;
 		
 		// count++;////////////////////////////t
 		// if(count%1000==0){
@@ -523,169 +1061,123 @@ namespace utl {
     }
 
     // SH  Feb. 18, 2024
-    template<typename Float> template<int order> Float Branch<Float>::AsymptoticExpansionAexp(const Float a, const Float x)
+    template<typename Double> template<int order> Double Branch<Double>::AsymptoticExpansionAexp(const Double a, const Double x)
     {
-	const Float logsx = log(a)+x;
-	const Float logslogsx = log(logsx);
-	return AsymptoticExpansionImpl<Float, order>(logsx, logslogsx);
+	const Double logsx = std::log(a)+x;
+	const Double logslogsx = std::log(logsx);
+	return AsymptoticExpansionImpl<Double, order>(logsx, logslogsx);
     }
     
-    template<typename Float, int order> inline Float AsymptoticExpansionImpl(const Float a, const Float b){
-	return a + Horner<Float, AsymptoticPolynomialA, order>::Eval(1/a, b);
+    template<typename Double, int order> inline Double AsymptoticExpansionImpl(const Double a, const Double b){
+	return a + Horner<Double, AsymptoticPolynomialA, order>::Eval(1/a, b);
     }
 
-    template<typename Float> inline Float HalleyStep(const Float x, const Float w){
-	const Float ew = exp(w);
-	const Float wew = w * ew;
-	const Float wewx = wew - x;
-	const Float w1 = w + 1;
+    template<typename Double> inline Double HalleyStep(const Double x, const Double w){
+	const Double ew = std::exp(w);
+	const Double wew = w * ew;
+	const Double wewx = wew - x;
+	const Double w1 = w + 1;
 	return w - wewx / (ew * w1 - (w + 2) * wewx/(2*w1));
     }
 
     // S. Hara Mar. 8, 2024
-    template<typename Float> inline Float HalleyStepAexp(const Float a, const Float y, const Float w){
-	const Float ewy = exp(w-y);
-	const Float wewy = w * ewy;
-	const Float wewya = wewy - a;
-	const Float w1 = w + 1;
+    template<typename Double> inline Double HalleyStepAexp(const Double a, const Double y, const Double w){
+	const Double ewy = std::exp(w-y);
+	const Double wewy = w * ewy;
+	const Double wewya = wewy - a;
+	const Double w1 = w + 1;
 	return w - wewya / (ewy * w1 - (w + 2) * wewya/(2*w1));
     }
     
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<2>, 0>{
-	static Float Coeff(){ return Float(0); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<2>, 0>{
+	static Double Coeff(){ return Double(0); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<2>, 1>{
-	static Float Coeff(){ return Float(-1); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<2>, 1>{
+	static Double Coeff(){ return Double(-1); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<2>, 2>{
-	static Float Coeff(){ return Float(1./2); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<2>, 2>{
+	static Double Coeff(){ return Double(1./2); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<3>, 0>{
-	static Float Coeff(){ return Float(0); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<3>, 0>{
+	static Double Coeff(){ return Double(0); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<3>, 1>{
-	static Float Coeff(){ return Float(1); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<3>, 1>{
+	static Double Coeff(){ return Double(1); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<3>, 2>{
-	static Float Coeff(){ return Float(-3./2); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<3>, 2>{
+	static Double Coeff(){ return Double(-3./2); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<3>, 3>{
-	static Float Coeff(){ return Float(1./3); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<3>, 3>{
+	static Double Coeff(){ return Double(1./3); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<4>, 0>{
-	static Float Coeff(){ return Float(0); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<4>, 0>{
+	static Double Coeff(){ return Double(0); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<4>, 1>{
-	static Float Coeff(){ return Float(-1); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<4>, 1>{
+	static Double Coeff(){ return Double(-1); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<4>, 2>{
-	static Float Coeff(){ return Float(3); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<4>, 2>{
+	static Double Coeff(){ return Double(3); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<4>, 3>{
-	static Float Coeff(){ return Float(-11./6); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<4>, 3>{
+	static Double Coeff(){ return Double(-11./6); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<4>, 4>{
-	static Float Coeff(){ return Float(1./4); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<4>, 4>{
+	static Double Coeff(){ return Double(1./4); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<5>, 0>{
-	static Float Coeff(){ return Float(0); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<5>, 0>{
+	static Double Coeff(){ return Double(0); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<5>, 1>{
-	static Float Coeff(){ return Float(1); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<5>, 1>{
+	static Double Coeff(){ return Double(1); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<5>, 2>{
-	static Float Coeff(){ return Float(-5); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<5>, 2>{
+	static Double Coeff(){ return Double(-5); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<5>, 3>{
-	static Float Coeff(){ return Float(35./6); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<5>, 3>{
+	static Double Coeff(){ return Double(35./6); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<5>, 4>{
-	static Float Coeff(){ return Float(-25./12); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<5>, 4>{
+	static Double Coeff(){ return Double(-25./12); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialB<5>, 5>{
-	static Float Coeff(){ return Float(-1./5); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialB<5>, 5>{
+	static Double Coeff(){ return Double(-1./5); }
     };
 
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialA, 0> {
-	static Float Coeff(const Float y) { return Float(-y); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialA, 0> {
+	static Double Coeff(const Double y) { return Double(-y); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialA, 1> {
-	static Float Coeff(const Float y) { return Float(y); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialA, 1> {
+	static Double Coeff(const Double y) { return Double(y); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialA, 2> {
-	static Float Coeff(const Float y) { return Float(Horner<Float,  AsymptoticPolynomialB<2>, 2>::Eval(y)); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialA, 2> {
+	static Double Coeff(const Double y) { return Double(Horner<Double,  AsymptoticPolynomialB<2>, 2>::Eval(y)); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialA, 3> {
-	static Float Coeff(const Float y) { return Float(Horner<Float,  AsymptoticPolynomialB<3>, 3>::Eval(y)); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialA, 3> {
+	static Double Coeff(const Double y) { return Double(Horner<Double,  AsymptoticPolynomialB<3>, 3>::Eval(y)); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialA, 4> {
-	static Float Coeff(const Float y) { return Float(Horner<Float,  AsymptoticPolynomialB<4>, 4>::Eval(y)); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialA, 4> {
+	static Double Coeff(const Double y) { return Double(Horner<Double,  AsymptoticPolynomialB<4>, 4>::Eval(y)); }
     };
-    template<typename Float> struct Polynomial<Float, AsymptoticPolynomialA, 5> {
-	static Float Coeff(const Float y) { return Float(Horner<Float,  AsymptoticPolynomialB<5>, 5>::Eval(y)); }
+    template<typename Double> struct Polynomial<Double, AsymptoticPolynomialA, 5> {
+	static Double Coeff(const Double y) { return Double(Horner<Double,  AsymptoticPolynomialB<5>, 5>::Eval(y)); }
     };
 
 }
-/**************************************************************************
- *        globalConstants.hh
- ************************************************************************/
-#if !defined(__GLOBALCONSTANTS_HH)
-#define __GLOBALCONSTANTS_HH
-#include <string>
-
-class GlobalConstants{
-public:
-    // ND240HA
-    float IscSTC {8.61};   // A
-    float VocSTC {37.05};   // V
-    float ImpSTC {8.16};   // A
-    float VmpSTC {29.42};   // V
-    const float alphaSc {0.00038};   // /degC
-    const float betaOc {-0.00329};   // /degC
-    const float gammaMp {-0.00440};   // /degC
-
-    // ND240HA
-    const float IscSTC_ND240HA {8.61};   // A
-    const float VocSTC_ND240HA {37.05};   // V
-    const float ImpSTC_ND240HA {8.16};   // A
-    const float VmpSTC_ND240HA {29.42};   // V
-
-    // ND265HD
-    const float IscSTC_ND265HD {8.70};   // A   ND265HD
-    const float VocSTC_ND265HD {37.91};   // V
-    const float ImpSTC_ND265HD {8.38};   // A
-    const float VmpSTC_ND265HD {31.63};   // V
-    
-    const int Ns {60};
-    const int Ns_sub {20};   // the number of cells in a substring
-    
-    const int S {84};   // the number of strings in a stringGroup
-    const int L {14*3};   // the number of substrings in a string
-
-    static const int K {4};   // ストリング群のパラメータ推定をする測定データ時間数
-
-    bool haveGPU {true};  // GPUを使わないときは、これをfalseにする
-
-    // Constructors
-    GlobalConstants();
-    GlobalConstants(std::string kataban);
-    
-    float getVocSTCss(){ return VocSTC*Ns_sub/Ns; }
-    float getVmpSTCss(){ return VmpSTC*Ns_sub/Ns; }
-};
-
-#endif
 /*********************************************************************
  *      adaptiveModel.hh
  ********************************************************************/
-#if !defined(__ADAPTIVE_MODEL_HH)
-#define __ADAPTIVE_MODEL_HH
+#if !defined(_ADAPTIVE_MODEL_HH)
+#define _ADAPTIVE_MODEL_HH
 
+#if !defined(UBUNTU)
 #include <cuda_runtime.h>
+#endif
 #include "globalConstants.hh"
+#include <vector>
 
 struct FiveParams{
-    float aRs[GlobalConstants::K], aEta[GlobalConstants::K], aRh[GlobalConstants::K],
+    double aRs[GlobalConstants::K], aEta[GlobalConstants::K], aRh[GlobalConstants::K],
 	aI0[GlobalConstants::K], aIph[GlobalConstants::K];
 
     void print() const;
@@ -693,8 +1185,9 @@ struct FiveParams{
 
 class AdaptiveModel{
 private:
-    GlobalConstants m_gc;
+    GlobalConstants &m_gc;
     
+#if !defined(UBUNTU)
     // const unsigned int numBlocksRs {4};
     // const unsigned int numBlocksEta {4};
     // const unsigned int numBlocksRs {8};
@@ -702,8 +1195,8 @@ private:
     const unsigned int m_numBlocksRs {32};
     const unsigned int m_numBlocksEta {32};
     const dim3 m_numBlocks {m_numBlocksRs, m_numBlocksEta};
-    const dim3 m_threadsPerBlock {32, 32};   // 32*32=10^10=1024
-    // const dim3 m_threadsPerBlock {16, 16};   // 32*32=10^10=1024
+    // const dim3 m_threadsPerBlock {32, 32};   // 32*32=10^10=1024
+    const dim3 m_threadsPerBlock {16, 16};   // 32*32=10^10=1024x
     // const dim3 m_threadsPerBlock {4, 4};   // 32*32=10^10=1024
 
     // const int nRs {256};  // 各GPUスレッドが調べるRsの個数
@@ -712,109 +1205,139 @@ private:
     // const int nEta {128};  // 各GPUスレッドが調べるEtaの個数
     // const int m_nRs {64};  // 各GPUスレッドが調べるRsの個数
     // const int m_nEta {64};  // 各GPUスレッドが調べるEtaの個数
-    // const int m_nRs {32};  // 各GPUスレッドが調べるRsの個数
-    // const int m_nEta {32};  // 各GPUスレッドが調べるEtaの個数
-    const int m_nRs {16};  // 各GPUスレッドが調べるRsの個数
-    const int m_nEta {16};  // 各GPUスレッドが調べるEtaの個数
+    const int m_nRs {32};  // 各GPUスレッドが調べるRsの個数
+    const int m_nEta {32};  // 各GPUスレッドが調べるEtaの個数
+    // const int m_nRs {16};  // 各GPUスレッドが調べるRsの個数
+    // const int m_nEta {16};  // 各GPUスレッドが調べるEtaの個数
     // const int nRs {8};  // 各GPUスレッドが調べるRsの個数
     // const int nEta {8};  // 各GPUスレッドが調べるEtaの個数
 
-    // Rs, etaの最初の探索範囲
-    const float m_Rs0init = 0.001, m_Rs1init = 10.0, m_eta0init = 1.0, m_eta1init = 2.5;
-    
     const int m_numThreadsRs = m_numBlocksRs*m_threadsPerBlock.x;
     const int m_numThreadsEta = m_numBlocksEta*m_threadsPerBlock.y;
     const int m_numThreads = m_numThreadsRs*m_numThreadsEta;
     const int m_NRs = m_numThreadsRs*m_nRs;
     const int m_NEta = m_numThreadsEta*m_nEta;
+#endif
+#ifdef UBUNTU
+    const int m_NRs = 5000;
+    const int m_NEta = 5000;
+#endif    
+    
+    // Rs, etaの最初の探索範囲
+    const double m_Rs0init = 0.001, m_Rs1init = 10.0, m_eta0init = 1.0, m_eta1init = 2.5;
+    
+    const double m_deltaOc = 0.0539, m_deltaMp = 0.0265;  // ND240-HA
+    const double m_etad = -5.7E-4;  // /K
 
-    const float m_deltaOc = 0.0539, m_deltaMp = 0.0265;  // ND240-HA
-    const float m_etad = -5.7E-4;  // /K
-  
+    // *** Notice *** If you modify the parameters higher than here,
+    // you must remove the file 'searchHistoryAM.dat'.
+    
     // このクラスのメインの状態変数、コンストラクタで設定される
-    float m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC, m_alphaSc, m_betaOc, m_gammaMp, m_G, m_T;
+    double m_g, m_t, m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC,
+	m_alphaSc, m_betaOc, m_gammaMp, m_G, m_T;
+    bool m_STCParamsChanged;
+    
     int m_Ns;
 
     // 関数setVarsで設定される
-    float m_Rs0=m_Rs0init, m_Rs1=m_Rs1init, m_eta0=m_eta0init, m_eta1=m_eta1init;
+    double m_Rs0=m_Rs0init, m_Rs1=m_Rs1init, m_eta0=m_eta0init, m_eta1=m_eta1init;
 
-    float m_GpGSTC;
-    float m_TmTSTC;
-    float m_lnGpGSTC;
-    float m_PmaxSTC;
+    double m_GpGSTC;
+    double m_TmTSTC;
+    double m_lnGpGSTC;
+    double m_PmaxSTC;
   
-    float m_Tkel;
-    float m_NsVt;
-    float m_W01;
-    float m_W02;
+    double m_Tkel;
+    double m_NsVt;
+    double m_W01;
+    double m_W02;
 
-    float m_Voc, m_Isc, m_Vmp, m_Imp;  // G,Tに対する値
+    double m_Voc, m_Isc, m_Vmp, m_Imp;  // G,Tに対する値
     // 関数setVarsで設定される（ここまで）
 
     // 関数calcA0B0で設定される
-    float m_A0, m_B0, m_eta00, m_absA0, m_absB0;  // eta00はA0, B0の計算に使われたetaの値、1.0, 1,1, 1,2, 1,3のいずれか
+    double m_A0, m_B0, m_eta00, m_absA0, m_absB0;  // eta00はA0, B0の計算に使われたetaの値、1.0, 1,1, 1,2, 1,3のいずれか
 
     // Five parameters of single diode model
-    float m_Rs, m_eta, m_Rh, m_I0, m_Iph;
+    double m_Rs=-1.0, m_eta, m_Rh, m_I0, m_Iph;
 
     // コンストラクタ、calcPCS()から呼び出される
     void setVars();
+    // void setVarsSTC();
     void calcA0B0();
     void setVarsGetE();
   
-    float calcRh(float Rs, float eta) const;
-    float calcI0(float Rs, float eta, float Rh) const;
-    float calcIph(float Rs, float eta, float Rh) const;
+    double calcRh(double Rs, double eta) const;
+    double calcI0(double Rs, double eta, double Rh) const;
+    double calcIph(double Rs, double eta, double Rh) const;
+
+    bool sameCalc();  // Exist the same calc in m_vsr already?
 
     // PCSデータによるパラメータ推定用、calcPCSでセットされる
-    float m_aG[GlobalConstants::K], m_aT[GlobalConstants::K];
-    float m_aNsVt[GlobalConstants::K];
-    float m_aIsc[GlobalConstants::K], m_aVoc[GlobalConstants::K],
+    double m_aG[GlobalConstants::K], m_aT[GlobalConstants::K];
+    double m_aNsVt[GlobalConstants::K];
+    double m_aIsc[GlobalConstants::K], m_aVoc[GlobalConstants::K],
 	m_aImp[GlobalConstants::K], m_aVmp[GlobalConstants::K]; 
-    float m_aRs[GlobalConstants::K], m_aEta[GlobalConstants::K], m_aRh[GlobalConstants::K],
+    double m_aRs[GlobalConstants::K], m_aEta[GlobalConstants::K], m_aRh[GlobalConstants::K],
 	m_aI0[GlobalConstants::K], m_aIph[GlobalConstants::K];
-    float m_aLnGpGSTC[GlobalConstants::K];
-    float m_aW01[GlobalConstants::K], m_aW02[GlobalConstants::K];
+    double m_aLnGpGSTC[GlobalConstants::K];
+    double m_aW01[GlobalConstants::K], m_aW02[GlobalConstants::K];
     
-    float SearchNoGPU(float kRs, float dEta);
+    double SearchNoGPU(double kRs, double dEta);
 
-    double m_Vmin {-100.0};   // the least voltage of this cell (V)
-    double m_Imin {-1000.0};   // the least current of this cell (A)
+    const double m_Vmin {-100.0};   // the least voltage of this cell (V)
+    const double m_Imin {-1000.0};   // the least current of this cell (A)
     double m_Imax;
     double m_Vmax;
 
+    void getJ(const double Rs, const double eta, double J[2], double &E);
+
 public:
     // Constructors G (W/m^2), T (degC)
-    AdaptiveModel(float IscSTC, float VocSTC, float ImpSTC, float VmpSTC, float alphaSc,
-		  float betaOc, float gammaMp, float G, float T, int Ns, GlobalConstants gc);
-    AdaptiveModel(GlobalConstants gc, float G, float T);
+    AdaptiveModel(double IscSTC, double VocSTC, double ImpSTC, double VmpSTC, double alphaSc,
+		  double betaOc, double gammaMp, double G, double T, int Ns, GlobalConstants gc);
+    //AdaptiveModel(GlobalConstants &gc, double G, double T);
+    AdaptiveModel(GlobalConstants gc);  // Constructor doing nothing
+    AdaptiveModel(GlobalConstants &gc, double GG, double TT,
+		  bool STCParamsChanged=false, bool doCalc=true);
 
-    float calc();
-    // float calcRh(float Rs, float eta);//////////////////////t
+    double calc();
+    // double calcRh(double Rs, double eta);//////////////////////t
 
-    float calcNoGPU();
+    double calcNoGPU();
+    double calcLM();
+    double calcE(double Rs, double eta);
 
-    float getRs() const{ return m_Rs; }
-    float getEta() const{ return m_eta; }
-    float getRh() const{ return m_Rh; }
-    float getI0() const{ return m_I0; }
-    float getIph() const{ return m_Iph; }
+    double get_g() const{ return m_g; }
+    double get_t() const{ return m_t; }
+    double getVocSTC() const{ return m_VocSTC; }
+    double getIscSTC() const{ return m_IscSTC; }
+    double getVmpSTC() const{ return m_VmpSTC; }
+    double getImpSTC() const{ return m_ImpSTC; }
+    
+    double getRs() const{ return m_Rs; }
+    double getEta() const{ return m_eta; }
+    double getRh() const{ return m_Rh; }
+    double getI0() const{ return m_I0; }
+    double getIph() const{ return m_Iph; }
 
     double getV(double I) const;
     double getI(double V) const;
 
-    float getIsc() const{ return m_Isc; }
+    double getIsc() const{ return m_Isc; }
 
     // PCSデータによるパラメータ推定用
-    float calcPCS(double G[], double T[]);
-    float calcPCSGetE();
+    double calcPCS(double G[], double T[]);
+    double calcPCSGetE();
     
-    float getIsc(int k) const{ return m_aIsc[k]; }
+    double getIsc(int k) const{ return m_aIsc[k]; }
     
     void getVIjunbi(int k);
 
     void set5params(double Rss, double Etaa, double Rhh, double I00, double Iphh);
     void set5params(double Rss, double Etaa, double Rhh, double I00, double Iphh, double NsVtt, int k);
+    void setGT(double G, double T);
+    void refreshImaxVmax();
 
     void setSTCparams(double X[4]);
 
@@ -826,18 +1349,21 @@ public:
     double getImax() const{ return m_Imax; }
     double getVmin() const{ return m_Vmin; }
     double getImin() const{ return m_Imin; }
+
+    void changeSTCParams(double r0, double r1, double r2, double r3);
 };
 
 // Kernel
-__global__ void Search(float *d_Rs0nth, float *d_eta0nth,
-		       float *d_RsMin,  float *d_RhMin, float *d_etaMin,float *d_Emin,
-		       float Isc, float Voc, float Imp, float Vmp,
-		       float alphaSc, float betaOc, float gammaMp,
-		       float NsVt, float I01d, float I02d,
-		       float etad, float TInv,
-		       float kRs, float dEta, int nRs, int nEta,
-		       float absA0, float absB0);
-
+#if !defined(UBUNTU)
+__global__ void Search(double *d_Rs0nth, double *d_eta0nth,
+		       double *d_RsMin,  double *d_RhMin, double *d_etaMin,double *d_Emin,
+		       double Isc, double Voc, double Imp, double Vmp,
+		       double alphaSc, double betaOc, double gammaMp,
+		       double NsVt, double I01d, double I02d,
+		       double etad, double TInv,
+		       double kRs, double dEta, int nRs, int nEta,
+		       double absA0, double absB0);
+#endif
 #endif
 // -*- C++ -*-
 /******************************************************************************
@@ -846,11 +1372,14 @@ __global__ void Search(float *d_Rs0nth, float *d_eta0nth,
 #include "adaptiveModel.hh"
 #include "LambertWhara.hh"
 #include "globalConstants.hh"
+#include "ludcmp.h"
 #include <iostream>
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#if !defined(UBUNTU)
 #include <cuda_runtime.h>
+#endif
 #include <iomanip>  // calcPCSparams
 #include <stdexcept>
 #include <string>
@@ -858,9 +1387,9 @@ __global__ void Search(float *d_Rs0nth, float *d_eta0nth,
 /** Constructor G (W/m^2), T (degC)    **********************************************
  *  出力：IscSTC, VocSTC, ImpSTC, VmpSTC, alphaSc, betaOc, gammaMp, G, T, Ns
  *  関数呼び出し：setVars, calcA0B0    *********************************************/
-AdaptiveModel::AdaptiveModel(float IscSTCC, float VocSTCC, float ImpSTCC, float VmpSTCC,
-			     float alphaScc, float betaOcc, float gammaMpp,
-			     float GG, float TT, int Nss, GlobalConstants gc)
+AdaptiveModel::AdaptiveModel(double IscSTCC, double VocSTCC, double ImpSTCC, double VmpSTCC,
+			     double alphaScc, double betaOcc, double gammaMpp,
+			     double GG, double TT, int Nss, GlobalConstants gc)
     :m_IscSTC{IscSTCC}, m_VocSTC{VocSTCC}, m_ImpSTC{ImpSTCC}, m_VmpSTC{VmpSTCC},
      m_alphaSc{alphaScc}, m_betaOc{betaOcc}, m_gammaMp{gammaMpp}, m_G{GG}, m_T{TT},
      m_Ns{Nss}, m_gc{gc}{
@@ -875,19 +1404,55 @@ AdaptiveModel::AdaptiveModel(float IscSTCC, float VocSTCC, float ImpSTCC, float 
 /** GlobalConstantsを与えるコンストラクタ  ******************************************
  *  出力：IscSTC, VocSTC, ImpSTC, VmpSTC, alphaSc, betaOc, gammaMp, G, T, Ns
  *  関数呼び出し：setVars, calcA0B0     ********************************************/
-AdaptiveModel::AdaptiveModel(GlobalConstants gc, float GG, float TT)
-    :m_IscSTC{gc.IscSTC}, m_VocSTC{gc.VocSTC/gc.Ns}, // modified m_VocSTC{gc.VocSTC/gc.Ns*gc.Ns_sub},
-     m_ImpSTC{gc.ImpSTC}, m_VmpSTC{gc.VmpSTC/gc.Ns},  // modified m_VmpSTC{gc.VmpSTC/gc.Ns*gc.Ns_sub},
+AdaptiveModel::AdaptiveModel(GlobalConstants &gc, double GG, double TT,
+			     bool STCParamsChanged, bool doCalc)
+    :m_g{1.0}, m_t{0.0}, m_IscSTC{gc.IscSTC}, m_VocSTC{gc.VocSTC/gc.Ns},
+     m_ImpSTC{gc.ImpSTC}, m_VmpSTC{gc.VmpSTC/gc.Ns},
      m_alphaSc{gc.alphaSc}, m_betaOc{gc.betaOc}, m_gammaMp{gc.gammaMp},
-     m_G{GG}, m_T{TT}, m_Ns{1}, m_gc{gc}{  // modified m_Ns{gc.Ns_sub}, Mar.4,2026
+     m_G{GG}, m_T{TT}, m_Ns{1}, m_gc{gc},
+     m_STCParamsChanged{STCParamsChanged}{  // modified m_Ns{gc.Ns_sub}, Mar.4,2026
 
     setVars();
-    calcA0B0();
-    calc();    // added Mar.4, 2026
-    m_Imax = getI(m_Vmin);
-    m_Vmax = getV(m_Imin);
-    // printf("am: Imax=%g, Vmax=%g\n", m_Imax, m_Vmax);/////////////////////
+        
+    if(doCalc){
+        calcA0B0();
+        calc();    // added Mar.4, 2026
+        m_Imax = getI(m_Vmin);
+        m_Vmax = getV(m_Imin);
+    }
     // testVars(33.4);////////////////////////
+}
+
+/********* Empty Constructor, 9 Apr.2026  *************************/
+AdaptiveModel::AdaptiveModel(GlobalConstants gc)
+    :m_IscSTC{gc.IscSTC}, m_VocSTC{gc.VocSTC/gc.Ns},
+     m_ImpSTC{gc.ImpSTC}, m_VmpSTC{gc.VmpSTC/gc.Ns},
+     m_alphaSc{gc.alphaSc}, m_betaOc{gc.betaOc}, m_gammaMp{gc.gammaMp},
+     m_Ns{1}, m_gc{gc}{  // modified m_Ns{gc.Ns_sub}, Mar.4,2026
+}
+
+/*********************** 2026.10.14-- ************************************/
+void AdaptiveModel::changeSTCParams(double r0, double r1, double r2, double r3){
+    // printf("changeSTCParams\n");////////////////////////t
+    // if((r0>1.0 && r2<1.0) || (r0<1.0 && r2>1.0)) r2 = 2.0 - r2;
+    // if((r1>1.0 && r3<1.0) || (r1<1.0 && r3>1.0)) r3 = 2.0 - r3;
+    m_IscSTC *= r0;
+    m_VocSTC *= r1;
+    // m_ImpSTC *= r2;
+    // m_VmpSTC *= r3;
+    m_ImpSTC *= (r0*(0.1*r2+0.9));
+    m_VmpSTC *= (r1*(0.1*r3+0.9));
+    // printf("r0=%g, r1=%g, r2=%g, r3=%g\n", r0, r1, r2, r3);///////////////t
+    // printf("IscSTC=%g, VocSTC=%g, ImpSTC=%g, VmpSTC=%g\n",
+    //        m_IscSTC, m_VocSTC, m_ImpSTC, m_VmpSTC);//////////////////////t
+    m_STCParamsChanged = true;
+
+    // setVarsSTC();
+    setVars();
+    calcA0B0();
+    calc();
+    // m_Imax = getI(m_Vmin);
+    // m_Vmax = getV(m_Imin);
 }
 
 /** クラスの変数たちを設定する。コンストラクタから呼び出される。  *******************
@@ -902,81 +1467,100 @@ void AdaptiveModel::setVars(){
     m_eta0 = m_eta0init;
     m_eta1 = m_eta1init;
 
-    m_GpGSTC = m_G/1000.0;
-    m_lnGpGSTC = log(m_GpGSTC);
-    m_TmTSTC = m_T - 25.0;
+    m_GpGSTC = m_g*m_G/1000.0;
+    m_lnGpGSTC = std::log(m_GpGSTC);
+    m_TmTSTC = m_T +m_t - 25.0;
     m_PmaxSTC = m_ImpSTC*m_VmpSTC;
-    m_Tkel = m_T+273.15;
-    float kT = 1.380649E-23*m_Tkel;
+    m_Tkel = m_T +m_t +273.15;
+    double kT = 1.380649E-23*m_Tkel;
     m_NsVt = m_Ns*kT/1.602176634E-19;
 
-    float Eg = 1.8516E-19 -1.12488E-22*m_Tkel*m_Tkel/(m_Tkel+1108.0);
-    float Egd = -1.12488E-22*(m_Tkel*m_Tkel+2.0*m_Tkel*1108.0)/( (m_Tkel+1108.0)*(m_Tkel+1108.0) );
+    double Eg = 1.8516E-19 -1.12488E-22*m_Tkel*m_Tkel/(m_Tkel+1108.0);
+    double Egd = -1.12488E-22*(m_Tkel*m_Tkel+2.0*m_Tkel*1108.0)/( (m_Tkel+1108.0)*(m_Tkel+1108.0) );
     m_W01 = 3.0/m_Tkel -Egd/kT +Eg/(kT*m_Tkel);
-    m_W02 = (Eg/kT -3.0*log(m_Tkel))*m_etad;
+    m_W02 = (Eg/kT -3.0*std::log(m_Tkel))*m_etad;
 
     m_Isc = m_IscSTC*m_GpGSTC*(1.0+m_alphaSc*m_TmTSTC);
     m_Voc = m_VocSTC/(1.0-m_deltaOc*m_lnGpGSTC)*(1.0+m_betaOc*m_TmTSTC);
     m_Vmp = m_VmpSTC*( 1.0/(1.0-m_deltaOc*m_lnGpGSTC) +m_betaOc*m_TmTSTC );
-    float Pmax = m_PmaxSTC*m_GpGSTC/(1.0-m_deltaMp*m_lnGpGSTC)*(1.0+m_gammaMp*m_TmTSTC);
+    double Pmax = m_PmaxSTC*m_GpGSTC/(1.0-m_deltaMp*m_lnGpGSTC)*(1.0+m_gammaMp*m_TmTSTC);
     m_Imp = Pmax/m_Vmp;
 }    
+
+// /************************* 2026.10.18-- **************************************/
+// void AdaptiveModel::setVarsSTC(){
+//     m_PmaxSTC = m_ImpSTC*m_VmpSTC;
+
+//     m_Isc = m_IscSTC*m_GpGSTC*(1.0+m_alphaSc*m_TmTSTC);
+//     m_Voc = m_VocSTC/(1.0-m_deltaOc*m_lnGpGSTC)*(1.0+m_betaOc*m_TmTSTC);
+//     m_Vmp = m_VmpSTC*( 1.0/(1.0-m_deltaOc*m_lnGpGSTC) +m_betaOc*m_TmTSTC );
+//     double Pmax = m_PmaxSTC*m_GpGSTC/(1.0-m_deltaMp*m_lnGpGSTC)*(1.0+m_gammaMp*m_TmTSTC);
+//     m_Imp = Pmax/m_Vmp;
+// }    
 
 /** A0, ,absA0, B0, absB0, eta00を計算する。コンストラクタから実行される  2024.1.8--
  *  入力：Voc, Isc, Vmp, Imp, NsVt, alphaSc, betaOc, gammaMp, Tkel, etad, W01, W02
  *  出力：A0, ,absA0, B0, absB0, eta00  *********************************************/
 void AdaptiveModel::calcA0B0(){
-    float eta = 1.0;
+    double eta = 1.0;
     
     for(int count=0; count<3; count++){
-	float x = m_Voc/(eta*m_NsVt);
-	float z = m_Vmp/(eta*m_NsVt);
+	double x = m_Voc/(eta*m_NsVt);
+	double z = m_Vmp/(eta*m_NsVt);
 
-	float emx = exp(-x);
-	float ezmx = exp(z-x);
+	double emx = std::exp(-x);
+	double ezmx = std::exp(z-x);
 	
-	float Rh = (m_Vmp+(m_Voc-m_Vmp)*emx-m_Voc*ezmx) /(m_Isc-m_Imp+m_Imp*emx-m_Isc*ezmx);
+	double Rh = (m_Vmp+(m_Voc-m_Vmp)*emx-m_Voc*ezmx) /(m_Isc-m_Imp+m_Imp*emx-m_Isc*ezmx);
+	
+#ifdef UBUNTU
+	if(std::isnan(Rh)){   // Rh<0は許している
+	    eta += 0.1;
+	    continue;
+	}
+#else
 	if(isnan(Rh)){   // Rh<0は許している
 	    eta += 0.1;
 	    continue;
 	}
+#endif
 	
-	float I01 = m_Isc-m_Voc/Rh;
+	double I01 = m_Isc-m_Voc/Rh;
 	
-	float one_pXm1 = emx/(1.0-emx);
-	float ZpXm1 = ezmx/(1.0-emx);
+	double one_pXm1 = emx/(1.0-emx);
+	double ZpXm1 = ezmx/(1.0-emx);
 
-	float I0 = I01*one_pXm1;
+	double I0 = I01*one_pXm1;
 
 	this->m_A0 = -z*I01*ZpXm1+m_Imp-m_Vmp/Rh;
-	this->m_absA0 = abs(m_A0);
+	this->m_absA0 = std::abs(m_A0);
 	
 
-	if(m_absA0<sqrt(std::numeric_limits<float>::min()) || m_absA0>sqrt(std::numeric_limits<float>::max())){
+	if(m_absA0<std::sqrt(std::numeric_limits<double>::min()) || m_absA0>std::sqrt(std::numeric_limits<double>::max())){
 	    eta += 0.1;
 	    continue;
 	}
 
-	float W0 = m_W01/eta +m_W02/(eta*eta);
-	float I0d = W0*I0;
+	double W0 = m_W01/eta +m_W02/(eta*eta);
+	double I0d = W0*I0;
 
 	// Rhdの計算
-	float W1 = Rh*( m_Voc/(eta*m_NsVt)*( m_etad/eta -m_betaOc +1.0/m_Tkel ) -W0 );  // Tkel modified 2024.1.20 !!!!!
-	float W2 = (Rh*m_alphaSc)*m_Isc +Rh*I0d -m_betaOc*m_Voc;  // +Rh*I0d modified 2024.1.20 !!!!
+	double W1 = Rh*( m_Voc/(eta*m_NsVt)*( m_etad/eta -m_betaOc +1.0/m_Tkel ) -W0 );  // Tkel modified 2024.1.20 !!!!!
+	double W2 = (Rh*m_alphaSc)*m_Isc +Rh*I0d -m_betaOc*m_Voc;  // +Rh*I0d modified 2024.1.20 !!!!
 
-	float Rhd = -Rh/m_Voc*( I01/(1.0-emx)*W1 +W2 );
+	double Rhd = -Rh/m_Voc*( I01/(1.0-emx)*W1 +W2 );
 
 	this->m_B0 = I01*ZpXm1*( m_Vmp/(eta*m_NsVt)*(m_etad/eta-m_gammaMp+1.0/m_Tkel) -W0)
 	    +m_Vmp/(Rh*Rh)*Rhd +m_alphaSc*m_Isc+I0d-m_gammaMp*m_Vmp/Rh;   // Tkel modified 2024.1.21 !!!!!
-	this->m_absB0 = abs(m_B0);
+	this->m_absB0 = std::abs(m_B0);
 
-	if(m_absB0<sqrt(std::numeric_limits<float>::min()) || m_absB0>sqrt(std::numeric_limits<float>::max())){
+	if(m_absB0<std::sqrt(std::numeric_limits<double>::min()) || m_absB0>std::sqrt(std::numeric_limits<double>::max())){
 	    eta += 0.1;
 	    continue;
 	}
 
 	this->m_eta00 = eta;
-	
+
 	return;  // ここまで来たら問題ないので、return
     }
 
@@ -984,322 +1568,463 @@ void AdaptiveModel::calcA0B0(){
     exit(0);
 }
 
+/******************** 2026.10.13-- ********************************/
+void AdaptiveModel::getJ(const double Rs, const double eta, double J[2], double &E){
+    double deltaRs {Rs*1.0e-4>1.0e-6? Rs*1.0e-4: 1.0e-8};
+    double deltaEta {eta*1.0e-4>1.0e-6? eta*1.0e-4: 1.0e-6};
+
+    E = calcE(Rs, eta);
+    // printf("Rs+deltaRs=%g, calcE(Rs+deltaRs, eta)=%g\n", Rs+deltaRs, calcE(Rs+deltaRs, eta));
+    // printf("eta+deltaEta=%g, calcE(Rs, eta+deltaEta)=%g\n",
+    // eta+deltaEta, calcE(Rs, eta+deltaEta));
+    J[0] = (calcE(Rs+deltaRs, eta) - E)/deltaRs; 
+    J[1] = (calcE(Rs, eta+deltaEta) - E)/deltaEta; 
+
+    // printf("deltaRs=%g, deltaEta=%g, E=%g, J[0]=%g, J[1]=%g\n",
+    //        deltaRs, deltaEta, E, J[0], J[1]);
+}
+
+/******************* 2026.10.12-- **********************************/
+double AdaptiveModel::calcLM(){
+    // std::cout << "calcLM" << std::endl;//////////////////t
+    // printf("m_Voc=%g, m_A0=%g, m_B0=%g, m_Rs=%g, m_eta=%g\n",
+    //        m_Voc, m_A0, m_B0, m_Rs, m_eta);////////////////t
+
+    double J[2], E;
+    getJ(m_Rs, m_eta, J, E);
+    // printf("dEdRs=%g, dEdeta=%g, E=%g\n", J[0], J[1], E);//////////////////////////t
+
+    double lambda {(J[0]*J[0]+J[1]*J[1])*0.5e-3};
+    // printf("lambda=%g\n", lambda);////////////////////////
+
+    bool first {true};
+    while(true){
+        if(!first) getJ(m_Rs, m_eta, J, E);
+
+        double Delta[2];
+        while(true){
+            double a[4];
+            a[0] = J[0]*J[0] + lambda;
+            a[1] = J[0]*J[1];
+            a[2] = a[1];
+            a[3] = J[1]*J[1] + lambda;
+
+            LUdcmp ludcmp(a, 2);
+
+            double b[2];
+            b[0] = -J[0]*E;
+            b[1] = -J[1]*E;
+            ludcmp.solve(b, Delta, 2);
+            // for(int i=0; i<2; i++)
+            //     printf("Delta[%d]=%g r=%g, l=%g\n", i, Delta[i],
+            //            a[0+i*2]*Delta[0]+a[1+i*2]*Delta[1], b[i]);///////////////
+
+            double RsTmp {m_Rs+Delta[0]};
+            double etaTmp {m_eta+Delta[1]};
+            // printf("lambda=%g, E=%g\n", lambda, calcE(RsTmp, etaTmp));//////////t
+            if(RsTmp >= 0.0 && etaTmp > 0.0
+               && calcRh(RsTmp, etaTmp) >= 0.0 ////////////2026.10.23
+               && calcE(RsTmp, etaTmp) < E
+               ){
+                lambda *= 0.1;
+                break;
+            }else{
+                lambda *= 10.0;
+            }
+
+        }
+            
+        m_Rs += Delta[0];
+        m_eta += Delta[1];
+
+        // printf("Rs=%g, eta=%g, DeltaRs=%g, DeltaEta=%g, lambda=%g, E=%g\n",
+        //        m_Rs, m_eta, Delta[0], Delta[1], lambda, calcE(m_Rs, m_eta));/////////////t
+        if(Delta[0]*Delta[0]+Delta[1]*Delta[1] < 1.0e-5*(m_Rs*m_Rs+m_eta*m_eta)){
+            break;
+        }
+        
+        first = false;
+    }
+    
+    // パラメータRh, I0, Iphの値設定
+    m_Rh = calcRh(m_Rs, m_eta);
+    m_I0 = calcI0(m_Rs, m_eta, m_Rh);
+    m_Iph = calcIph(m_Rs, m_eta, m_Rh);
+    E = calcE(m_Rs, m_eta);
+
+    printf("AdaptiveModel::calcLM(): Emin=%g, Rs=%g, eta=%g, Rh=%g, I0=%g, Iph=%g\n",
+           E, m_Rs, m_eta, m_Rh, m_I0, m_Iph);/////////////////////t
+    return E; 
+}
+    
 /** 現在のVoc, Isc, Vmp, Impに対するRs, eta, Rh, I0, Iphをメッシュサーチして設定する 
  *  入力：numThreads, numThreadsRs, numThreadsEta, Rs0, Rs1, NRs, eta0, eta1, NEta
  *  出力：Rs0, Rs1, eta0, eta1, Rs, eta, Rh, I0, Iph
  *  関数呼び出し：Search, calcI0, calcIph
  *  戻り値：Emin (==INFINITYのときは、Rs, etaなどが設定されていないので注意）   *****/
-float AdaptiveModel::calc(){
-    if(!m_gc.haveGPU) return calcNoGPU();  // GPUを使わないとき
+double AdaptiveModel::calc(){
+    if(m_STCParamsChanged){ //aaa
+        // printf("m_STCParamsChanged=%d,  m_Rs=%g\n", m_STCParamsChanged, m_Rs);///////////////////t
+        SearchResult sr {m_Isc, m_Voc, m_Imp, m_Vmp, m_Tkel, m_absA0, m_absB0,
+                         0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        double minDist;
+        int minIndex = m_gc.sh.nearestSearchResult(sr, minDist);
+        printf("minIndex=%d, minDist/5=%g\n", minIndex, minDist/5.0);///////////////////t
+        m_Rs = m_gc.sh.m_vsr[minIndex].Rs;
+        m_eta = m_gc.sh.m_vsr[minIndex].eta;
+        if(minDist < 0.003*5.0 && calcRh(m_Rs, m_eta) >= 0.0){
+            return calcLM();
+        }
+    }
     
-    cudaError_t err = cudaSuccess;
-    size_t sizeAll {m_numThreads*sizeof(float)};  // スレッドの総数に対応するfloatメモリサイズ
-    size_t sizeRs {m_numThreadsRs*sizeof(float)};
-    size_t sizeEta {m_numThreadsEta*sizeof(float)};
-
-    // 各スレッドのRs探索範囲の下限である配列Rs0nthの準備
-    float *Rs0nth = (float *)malloc(sizeRs);
-    if(Rs0nth==NULL){
-	fprintf(stderr, "Failed to allocate host vector Rs0nth\n");
-	exit(EXIT_FAILURE);
+    SearchResult sr0 {m_Isc, m_Voc, m_Imp, m_Vmp, m_Tkel, m_absA0, m_absB0,
+		      m_Rs, m_eta, m_Rh, m_I0, m_Iph, 0.0};
+    int iSr {m_gc.sh.haveSearchResult(sr0)};
+    if(iSr >= 0){
+	m_Rs = m_gc.sh.m_vsr[iSr].Rs;
+	m_eta = m_gc.sh.m_vsr[iSr].eta;
+	m_Rh = m_gc.sh.m_vsr[iSr].Rh;
+	m_I0 = m_gc.sh.m_vsr[iSr].I0;
+	m_Iph = m_gc.sh.m_vsr[iSr].Iph;
+        double Emin {m_gc.sh.m_vsr[iSr].Emin};  // added 2026.11.12
+	printf("calc: haveSearchResult, iSr=%d, Emin=%g\n",
+	       iSr, m_gc.sh.m_vsr[iSr].Emin);//////////////////////////t
+        // SearchResultLM srLM {m_VocSTC*m_gc.Ns/m_gc.VocSTC, m_IscSTC/m_gc.IscSTC,
+        //                      m_VmpSTC*m_gc.Ns/m_gc.VmpSTC, m_ImpSTC/m_gc.ImpSTC,
+        //                      m_g, m_t, m_Rs, m_eta, m_Iph, m_I0, m_Rh, Emin};
+        // m_gc.shLM.addSearchResult(srLM);
+        // exit(0);///////////////////
+	return Emin;
+    }else{
+	printf("calc: haveSearchResult, no\n");////////////////t
     }
-  
-    // 各スレッドのEta探索範囲の下限である配列eta0nthの準備
-    float *eta0nth = (float *)malloc(sizeEta);
-    if(eta0nth==NULL){
-	fprintf(stderr, "Failed to allocate host vector eta0nth\n");
-	exit(EXIT_FAILURE);
-    }
-  
-    // 各スレッドが探索するRsの範囲の下限
-    float *d_Rs0nth = NULL;
-    err = cudaMalloc((void **)&d_Rs0nth, sizeRs);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector Rs0nth (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-
-    // 各スレッドが探索するEtaの範囲の下限
-    float *d_eta0nth = NULL;
-    err = cudaMalloc((void **)&d_eta0nth, sizeEta);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector Eta0nth (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-
-    // 各スレッドが探索した最小のEに対するRsの値
-    float *d_RsMin = NULL;
-    err = cudaMalloc((void **)&d_RsMin, sizeAll);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector RsMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-  
-    // 各スレッドが探索した最小のEに対するRhの値、 Rh<0のことがあるので
-    float *d_RhMin = NULL;
-    err = cudaMalloc((void **)&d_RhMin, sizeAll);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector RhMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-  
-    // 各スレッドが探索した最小のEに対するetaの値
-    float *d_etaMin = NULL;
-    err = cudaMalloc((void **)&d_etaMin, sizeAll);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector etaMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-  
-    // 各スレッドが探索した最小のEの値
-    float *d_Emin = NULL;
-    err = cudaMalloc((void **)&d_Emin, sizeAll);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to allocate device vector Emin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-
-    float *RsMinTh = (float *)malloc(sizeAll);  // コピー先の配列
-    if(RsMinTh==NULL){
-	fprintf(stderr, "Failed to allocate host vector RsMinTh\n");
-	exit(EXIT_FAILURE);
-    }
-	
-    float *RhMinTh = (float *)malloc(sizeAll);  // コピー先の配列////////////////////t
-    if(RhMinTh==NULL){
-	fprintf(stderr, "Failed to allocate host vector RhMinTh\n");
-	exit(EXIT_FAILURE);
-    }
-  
-    float *etaMinTh = (float *)malloc(sizeAll);  // コピー先の配列
-    if(etaMinTh==NULL){
-	fprintf(stderr, "Failed to allocate host vector etaMinTh\n");
-	exit(EXIT_FAILURE);
-    }
-	
-    float *EminTh = (float *)malloc(sizeAll);  // コピー先の配列
-    if(EminTh==NULL){
-	fprintf(stderr, "Failed to allocate host vector EminTh\n");
-	exit(EXIT_FAILURE);
-    }
-  
-    float Emin;
-  
-    for(int count=0; count<3; count++){  // 探索範囲変更のループ
     
-	float kRs = exp( log(m_Rs1/m_Rs0) /(m_NRs-1) );
-	float dEta = (m_eta1-m_eta0)/(m_NEta-1);
+    double Emin {std::numeric_limits<double>::infinity()};
+    
+    if(!m_gc.haveGPU) Emin = calcNoGPU();  // GPUを使わないとき
 
-	Rs0nth[0] = m_Rs0;
-	float knRs = exp( log(m_Rs1/m_Rs0)*m_nRs/(m_NRs-1) );
+#if !defined(UBUNTU)
+    else{
+	cudaError_t err = cudaSuccess;
+	size_t sizeAll {m_numThreads*sizeof(double)};  // スレッドの総数に対応するdoubleメモリサイズ
+	size_t sizeRs {m_numThreadsRs*sizeof(double)};
+	size_t sizeEta {m_numThreadsEta*sizeof(double)};
 
-	for(int n=1; n<m_numThreadsRs; n++){
-	    Rs0nth[n] = Rs0nth[n-1]*knRs;
+	// 各スレッドのRs探索範囲の下限である配列Rs0nthの準備
+	double *Rs0nth = (double *)malloc(sizeRs);
+	if(Rs0nth==NULL){
+	    fprintf(stderr, "Failed to allocate host vector Rs0nth\n");
+	    exit(EXIT_FAILURE);
+	}
+  
+	// 各スレッドのEta探索範囲の下限である配列eta0nthの準備
+	double *eta0nth = (double *)malloc(sizeEta);
+	if(eta0nth==NULL){
+	    fprintf(stderr, "Failed to allocate host vector eta0nth\n");
+	    exit(EXIT_FAILURE);
+	}
+  
+	// 各スレッドが探索するRsの範囲の下限
+	double *d_Rs0nth = NULL;
+	err = cudaMalloc((void **)&d_Rs0nth, sizeRs);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector Rs0nth (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
+
+	// 各スレッドが探索するEtaの範囲の下限
+	double *d_eta0nth = NULL;
+	err = cudaMalloc((void **)&d_eta0nth, sizeEta);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector Eta0nth (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
+
+	// 各スレッドが探索した最小のEに対するRsの値
+	double *d_RsMin = NULL;
+	err = cudaMalloc((void **)&d_RsMin, sizeAll);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector RsMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
+  
+	// 各スレッドが探索した最小のEに対するRhの値、 Rh<0のことがあるので
+	double *d_RhMin = NULL;
+	err = cudaMalloc((void **)&d_RhMin, sizeAll);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector RhMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
+  
+	// 各スレッドが探索した最小のEに対するetaの値
+	double *d_etaMin = NULL;
+	err = cudaMalloc((void **)&d_etaMin, sizeAll);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector etaMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
+  
+	// 各スレッドが探索した最小のEの値
+	double *d_Emin = NULL;
+	err = cudaMalloc((void **)&d_Emin, sizeAll);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to allocate device vector Emin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
+
+	double *RsMinTh = (double *)malloc(sizeAll);  // コピー先の配列
+	if(RsMinTh==NULL){
+	    fprintf(stderr, "Failed to allocate host vector RsMinTh\n");
+	    exit(EXIT_FAILURE);
 	}
 	
-	eta0nth[0] = m_eta0;
-	float dnEta = dEta*m_nEta;
-
-	for(int n=1; n<m_numThreadsEta; n++){
-	    eta0nth[n] = eta0nth[n-1]+dnEta;
-	}
-
-	// Rs探索範囲の下限である配列Rs0nthのGPUへのコピー
-	err = cudaMemcpy(d_Rs0nth, Rs0nth, sizeRs, cudaMemcpyHostToDevice);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector Rs0nth from host to device (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}
-
-	// Eta探索範囲の下限である配列Eta0nthのGPUへのコピー
-	err = cudaMemcpy(d_eta0nth, eta0nth, sizeEta, cudaMemcpyHostToDevice);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector eta0nth from host to device (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}
-
-	// GPUカーネルの実行
-	Search<<<m_numBlocks, m_threadsPerBlock>>>(d_Rs0nth, d_eta0nth,
-					       d_RsMin, d_RhMin, d_etaMin, d_Emin,
-					       m_Isc, m_Voc, m_Imp, m_Vmp,
-					       m_alphaSc, m_betaOc, m_gammaMp,
-					       m_NsVt, m_W01, m_W02, m_etad, 1.0/m_Tkel,
-					       kRs, dEta, m_nRs, m_nEta, m_absA0, m_absB0);
-	err = cudaGetLastError();
-
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to launch CUDA kernel (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}else{
-	    // fprintf(stderr, "# Succeeded to launch CUDA kernel (success code: %s)!\n", cudaGetErrorString(err));/////////////////t
-	}    
-
-	// 探索されたRsの値のホストへのコピー
-	err = cudaMemcpy(RsMinTh, d_RsMin, sizeAll, cudaMemcpyDeviceToHost);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector RsMin from device to host (error code %s)!\n", cudaGetErrorString(err));
+	double *RhMinTh = (double *)malloc(sizeAll);  // コピー先の配列////////////////////t
+	if(RhMinTh==NULL){
+	    fprintf(stderr, "Failed to allocate host vector RhMinTh\n");
 	    exit(EXIT_FAILURE);
 	}
   
-	// 探索されたRhの値のホストへのコピー  ///////////////////t
-	err = cudaMemcpy(RhMinTh, d_RhMin, sizeAll, cudaMemcpyDeviceToHost);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector RhMin from device to host (error code %s)!\n", cudaGetErrorString(err));
+	double *etaMinTh = (double *)malloc(sizeAll);  // コピー先の配列
+	if(etaMinTh==NULL){
+	    fprintf(stderr, "Failed to allocate host vector etaMinTh\n");
+	    exit(EXIT_FAILURE);
+	}
+	
+	double *EminTh = (double *)malloc(sizeAll);  // コピー先の配列
+	if(EminTh==NULL){
+	    fprintf(stderr, "Failed to allocate host vector EminTh\n");
 	    exit(EXIT_FAILURE);
 	}
   
-	// 探索されたetaの値のホストへのコピー
-	err = cudaMemcpy(etaMinTh, d_etaMin, sizeAll, cudaMemcpyDeviceToHost);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector etaMin from device to host (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}
-  
-	// 探索されたEminの値のホストへのコピー
-	err = cudaMemcpy(EminTh, d_Emin, sizeAll, cudaMemcpyDeviceToHost);
-	if (err != cudaSuccess){
-	    fprintf(stderr, "Failed to copy vector Emin from device to host (error code %s)!\n", cudaGetErrorString(err));
-	    exit(EXIT_FAILURE);
-	}
+	for(int count=0; count<3; count++){  // 探索範囲変更のループ
+    
+	    double kRs = std::exp( std::log(m_Rs1/m_Rs0) /(m_NRs-1) );
+	    double dEta = (m_eta1-m_eta0)/(m_NEta-1);
 
-	// 最小値（最適値）の決定
-	Emin = INFINITY;
-	for(int nth=0; nth<m_numThreads; nth++){
-	    if(EminTh[nth] < Emin){
-		this->m_Rs = RsMinTh[nth];
-		this->m_eta = etaMinTh[nth];
-		this->m_Rh = RhMinTh[nth];//////////////////////t
-		Emin = EminTh[nth];
+	    Rs0nth[0] = m_Rs0;
+	    double knRs = std::exp( std::log(m_Rs1/m_Rs0)*m_nRs/(m_NRs-1) );
+
+	    for(int n=1; n<m_numThreadsRs; n++){
+		Rs0nth[n] = Rs0nth[n-1]*knRs;
+	    }
+	
+	    eta0nth[0] = m_eta0;
+	    double dnEta = dEta*m_nEta;
+
+	    for(int n=1; n<m_numThreadsEta; n++){
+		eta0nth[n] = eta0nth[n-1]+dnEta;
+	    }
+
+	    // Rs探索範囲の下限である配列Rs0nthのGPUへのコピー
+	    err = cudaMemcpy(d_Rs0nth, Rs0nth, sizeRs, cudaMemcpyHostToDevice);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector Rs0nth from host to device (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
+
+	    // Eta探索範囲の下限である配列Eta0nthのGPUへのコピー
+	    err = cudaMemcpy(d_eta0nth, eta0nth, sizeEta, cudaMemcpyHostToDevice);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector eta0nth from host to device (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
+
+	    // GPUカーネルの実行
+	    Search<<<m_numBlocks, m_threadsPerBlock>>>(d_Rs0nth, d_eta0nth,
+						       d_RsMin, d_RhMin, d_etaMin, d_Emin,
+						       m_Isc, m_Voc, m_Imp, m_Vmp,
+						       m_alphaSc, m_betaOc, m_gammaMp,
+						       m_NsVt, m_W01, m_W02, m_etad, 1.0/m_Tkel,
+						       kRs, dEta, m_nRs, m_nEta, m_absA0, m_absB0);
+	    err = cudaGetLastError();
+
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to launch CUDA kernel (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }else{
+		// fprintf(stderr, "# Succeeded to launch CUDA kernel (success code: %s)!\n", cudaGetErrorString(err));/////////////////t
+	    }    
+
+	    // 探索されたRsの値のホストへのコピー
+	    err = cudaMemcpy(RsMinTh, d_RsMin, sizeAll, cudaMemcpyDeviceToHost);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector RsMin from device to host (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
+  
+	    // 探索されたRhの値のホストへのコピー  ///////////////////t
+	    err = cudaMemcpy(RhMinTh, d_RhMin, sizeAll, cudaMemcpyDeviceToHost);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector RhMin from device to host (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
+  
+	    // 探索されたetaの値のホストへのコピー
+	    err = cudaMemcpy(etaMinTh, d_etaMin, sizeAll, cudaMemcpyDeviceToHost);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector etaMin from device to host (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
+  
+	    // 探索されたEminの値のホストへのコピー
+	    err = cudaMemcpy(EminTh, d_Emin, sizeAll, cudaMemcpyDeviceToHost);
+	    if (err != cudaSuccess){
+		fprintf(stderr, "Failed to copy vector Emin from device to host (error code %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	    }
+
+	    // 最小値（最適値）の決定
+	    Emin = std::numeric_limits<double>::infinity();
+	    for(int nth=0; nth<m_numThreads; nth++){
+		if(EminTh[nth] < Emin){
+		    // this->m_Rs = RsMinTh[nth];
+		    // this->m_eta = etaMinTh[nth];
+		    // this->m_Rh = RhMinTh[nth];//////////////////////t
+		    m_Rs = RsMinTh[nth];
+		    m_eta = etaMinTh[nth];
+		    m_Rh = RhMinTh[nth];//////////////////////t
+		    Emin = EminTh[nth];
+		}
+	    }
+
+	    // // 2024.3.20
+	    // // ひとつもRh>=0のような条件を満たすRs, etaがなかったら、探索を終わる
+	    // if(Emin == INFINITY){
+	    //     // std::cout << "AdaptiveModel::calc()$$ no suitable Rs and eta, Emin==INFINITY\n";///////////////////t
+	    //     break;
+	    // }
+	
+	    // 最適値が範囲の端から2番目以内だったら、探索範囲を取り直して再探索。
+	    if(this->m_Rs <= m_Rs0*pow(kRs, 1.5)){
+		double a = 1.05*m_Rs0/m_Rs1;
+		m_Rs0 *= a;
+		m_Rs1 *= a;
+		// printf("New smaller  Rs0=%g, Rs1=%g\n", Rs0, Rs1);////////////////t
+	    }else if(m_Rs1/pow(kRs, 1.5) <= this->m_Rs){
+		double b = 0.95*m_Rs1/m_Rs0;
+		m_Rs0 *= b;
+		m_Rs1 *= b;
+		// printf("New larger Rs0=%g, Rs1=%g\n", Rs0, Rs1);////////////////t
+		// }else if(eta <= eta0+1.5*d){
+		//   double eee =eta0;
+		//   eta0 *= 0.1;
+		//   eta1 = eee +d;
+		//   printf("New smaller  eta0=%g, eta1=%g\n", eta0, eta1);
+	    }else if(m_eta1-1.5*dEta <= this->m_eta){
+		double eee = m_eta0;
+		m_eta0 = m_eta1-dEta;
+		m_eta1 = 2.0*m_eta1 -eee -dEta;
+		// printf("New larger  eta0=%g, eta1=%g\n", eta0, eta1);///////////////t
+	    }else{  // 端っこでなかったら、終わる
+		break;
 	    }
 	}
+  
+	// パラメータRh, I0, Iphの値設定
+	// Rh = calcRh(this->Rs, this->eta);///////////////////t GPUで計算したRhを使うことにする。非常に微妙で、わずかの数値誤差で大きく変わることがある ex. G=770.4000244, T=57.41066742
+	// m_I0 = calcI0(this->m_Rs, this->m_eta, m_Rh);
+	// m_Iph = calcIph(this->m_Rs, this->m_eta, m_Rh);
+	m_I0 = calcI0(m_Rs, m_eta, m_Rh);
+	m_Iph = calcIph(m_Rs, m_eta, m_Rh);
 
-	// 2024.3.20
-	// ひとつもRh>=0のような条件を満たすRs, etaがなかったら、探索を終わる
-	if(Emin == INFINITY){
-	    // std::cout << "AdaptiveModel::calc()$$ no suitable Rs and eta, Emin==INFINITY\n";///////////////////t
-	    break;
+	// mallocで確保したメモリの解放
+	free(Rs0nth);
+	free(eta0nth);
+	free(RsMinTh);
+	free(RhMinTh);/////////////////t
+	free(etaMinTh);
+	free(EminTh);
+
+	err = cudaFree(d_Rs0nth);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector Rs0nth (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
 	}
-	
-	// 最適値が範囲の端から2番目以内だったら、探索範囲を取り直して再探索。
-	if(this->m_Rs <= m_Rs0*pow(kRs, 1.5)){
-	    float a = 1.05*m_Rs0/m_Rs1;
-	    m_Rs0 *= a;
-	    m_Rs1 *= a;
-	    // printf("New smaller  Rs0=%g, Rs1=%g\n", Rs0, Rs1);////////////////t
-	}else if(m_Rs1/pow(kRs, 1.5) <= this->m_Rs){
-	    float b = 0.95*m_Rs1/m_Rs0;
-	    m_Rs0 *= b;
-	    m_Rs1 *= b;
-	    // printf("New larger Rs0=%g, Rs1=%g\n", Rs0, Rs1);////////////////t
-	    // }else if(eta <= eta0+1.5*d){
-	    //   float eee =eta0;
-	    //   eta0 *= 0.1;
-	    //   eta1 = eee +d;
-	    //   printf("New smaller  eta0=%g, eta1=%g\n", eta0, eta1);
-	}else if(m_eta1-1.5*dEta <= this->m_eta){
-	    float eee = m_eta0;
-	    m_eta0 = m_eta1-dEta;
-	    m_eta1 = 2.0*m_eta1 -eee -dEta;
-	    // printf("New larger  eta0=%g, eta1=%g\n", eta0, eta1);///////////////t
-	}else{  // 端っこでなかったら、終わる
-	    break;
+  
+	err = cudaFree(d_eta0nth);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector eta0nth (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
+  
+	err = cudaFree(d_RsMin);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector RsMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
+  
+	err = cudaFree(d_RhMin);/////////////////////t
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector RhMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
+  
+	err = cudaFree(d_etaMin);
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector etaMin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
+	}
+  
+	err = cudaFree(d_Emin); 
+	if (err != cudaSuccess){
+	    fprintf(stderr, "Failed to free device vector Emin (error code %s)!\n", cudaGetErrorString(err));
+	    exit(EXIT_FAILURE);
 	}
     }
-  
-    // パラメータRh, I0, Iphの値設定
-    // Rh = calcRh(this->Rs, this->eta);///////////////////t GPUで計算したRhを使うことにする。非常に微妙で、わずかの数値誤差で大きく変わることがある ex. G=770.4000244, T=57.41066742
-    m_I0 = calcI0(this->m_Rs, this->m_eta, m_Rh);
-    m_Iph = calcIph(this->m_Rs, this->m_eta, m_Rh);
-
-    // mallocで確保したメモリの解放
-    free(Rs0nth);
-    free(eta0nth);
-    free(RsMinTh);
-    free(RhMinTh);/////////////////t
-    free(etaMinTh);
-    free(EminTh);
-
-    err = cudaFree(d_Rs0nth);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector Rs0nth (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
+#endif
+    
+    SearchResult sr {m_Isc, m_Voc, m_Imp, m_Vmp, m_Tkel, m_absA0, m_absB0,
+		     m_Rs, m_eta, m_Rh, m_I0, m_Iph, Emin};
+    if(m_gc.sh.haveSearchResult(sr) < 0){
+	// printf("new search Result, m_vsr.size()=%zd\n", m_gc.sh.m_vsr.size());////////////////
+	m_gc.sh.m_vsr.push_back(sr);  // save a search result in the history
+	printf("Emin=%g, Rs=%g, eta=%g, Rh=%g, I0=%g, Iph=%g, m_vsr.size()=%zd\n", Emin, m_Rs, m_eta, m_Rh, m_I0, m_Iph, m_gc.sh.m_vsr.size());/////////////////////t
     }
-  
-    err = cudaFree(d_eta0nth);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector eta0nth (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-  
-    err = cudaFree(d_RsMin);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector RsMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-  
-    err = cudaFree(d_RhMin);/////////////////////t
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector RhMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-  
-    err = cudaFree(d_etaMin);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector etaMin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-  
-    err = cudaFree(d_Emin);
-    if (err != cudaSuccess){
-	fprintf(stderr, "Failed to free device vector Emin (error code %s)!\n", cudaGetErrorString(err));
-	exit(EXIT_FAILURE);
-    }
-
-    printf("Emin=%g, Rs=%g, eta=%g, Rh=%g, I0=%g, Iph=%g\n", Emin, m_Rs, m_eta, m_Rh, m_I0, m_Iph);/////////////////////t
 
     return Emin;
 }
 
+#if !defined(UBUNTU)
 /**************************   Kernel definition   ***********************************/
-__global__ void Search(float *d_Rs0nth, float *d_eta0nth,
-		       float *d_RsMin, float *d_RhMin, float *d_etaMin, float *d_Emin,
-                       float Isc, float Voc, float Imp, float Vmp,
-                       float alphaSc, float betaOc, float gammaMp,
-                       float NsVt, float W01, float W02,
-		       float etad, float TInv,
-                       float kRs, float dEta, int nRs, int nEta,
-		       float absA0, float absB0){
+__global__ void Search(double *d_Rs0nth, double *d_eta0nth,
+		       double *d_RsMin, double *d_RhMin, double *d_etaMin, double *d_Emin,
+		       double Isc, double Voc, double Imp, double Vmp,
+		       double alphaSc, double betaOc, double gammaMp,
+		       double NsVt, double W01, double W02,
+		       double etad, double TInv,
+		       double kRs, double dEta, int nRs, int nEta,
+		       double absA0, double absB0){
     int idx_x = blockDim.x*blockIdx.x + threadIdx.x;
     int idx_y = blockDim.y*blockIdx.y + threadIdx.y;
     int idx = idx_x*(gridDim.y*blockDim.y) + idx_y;
 
-    float VocMiVmp = Voc-Vmp;
-    float IscMiImp = Isc-Imp;
+    double VocMiVmp = Voc-Vmp;
+    double IscMiImp = Isc-Imp;
   
-    float RsMinVal = 0.0;
-    float RhMinVal = 10.0;    /////////////////////t
-    float etaMinVal = 1.0;  // 2024.2.25
-    float EminVal = INFINITY;
+    double RsMinVal = 0.0;
+    double RhMinVal = 10.0;    /////////////////////t
+    double etaMinVal = 1.0;  // 2024.2.25
+    double EminVal = INFINITY;
 
-    float Rs = d_Rs0nth[idx_x];  // Global Memroy内の配列からRs探索範囲の下限を読み取る
-    float eta = d_eta0nth[idx_y];  // Global Memroy内の配列からRs探索範囲の下限を読み取る
+    double Rs = d_Rs0nth[idx_x];  // Global Memroy内の配列からRs探索範囲の下限を読み取る
+    double eta = d_eta0nth[idx_y];  // Global Memroy内の配列からRs探索範囲の下限を読み取る
     for(int i=0; i<nRs; i++){ // Rsのループ
-	float RsIsc = Rs*Isc;
-	float RsImp = Rs*Imp;
-	float VmpPluRsImp = Vmp +RsImp;
-	float RsImpMiVmp = RsImp-Vmp;
+	double RsIsc = Rs*Isc;
+	double RsImp = Rs*Imp;
+	double VmpPluRsImp = Vmp +RsImp;
+	double RsImpMiVmp = RsImp-Vmp;
     
 	for(int j=0; j<nEta; j++){ // etaのループ
 	    
-	    float etaNsVt = eta*NsVt;
-	    float x =Voc/etaNsVt, y=RsIsc/etaNsVt, z=VmpPluRsImp/etaNsVt;
+	    double etaNsVt = eta*NsVt;
+	    double x =Voc/etaNsVt, y=RsIsc/etaNsVt, z=VmpPluRsImp/etaNsVt;
 
 	    if(x==y) continue;
 	    
 	    // Rhの計算
-	    float Rh;
-	    float ZpXY = NAN;  // Z/(X-Y)もついでにここで計算しておく
-	    float eyx, ezx, exy, ezy, exz, eyz;
+	    double Rh;
+	    double ZpXY = NAN;  // Z/(X-Y)もついでにここで計算しておく
+	    double eyx, ezx, exy, ezy, exz, eyz;
 	    
 	    if(x>=y && x>=z){
 		eyx = exp(y-x);
@@ -1323,85 +2048,86 @@ __global__ void Search(float *d_Rs0nth, float *d_eta0nth,
 	    if( Rh<=0.0 || isnan(Rh) ) continue;
 
 	    // I0の計算
-	    // float I01 = (1.0 +Rs/Rh )*Isc -Voc/Rh;
-	    float I01 = ( (Rh+Rs)*Isc -Voc )/Rh;
+	    // double I01 = (1.0 +Rs/Rh )*Isc -Voc/Rh;
+	    double I01 = ( (Rh+Rs)*Isc -Voc )/Rh;
       
-	    float oneXY, XoneXY, XpXY;
+	    double oneXY, XoneXY, XpXY;
 	    if(x>=y){
-		float eyx1 = exp(y-x);
-		float emx = exp(-x);
+		double eyx1 = exp(y-x);
+		double emx = exp(-x);
 		oneXY = emx/(1.0-eyx1);
 		XoneXY = (1.0-emx)/(1.0-eyx1);
 		XpXY = 1.0/(1.0-eyx1);
 	    }else{
-		float exy1 = exp(x-y);
-		float emy = exp(-y);
+		double exy1 = exp(x-y);
+		double emy = exp(-y);
 		oneXY = emy/(exy1-1.0);
 		XoneXY = (exy1-emy)/(exy1-1.0);
 		XpXY = exy1/(exy1-1.0);
 	    }
       
-	    float I0 = I01*oneXY;
+	    double I0 = I01*oneXY;
 	    if( !isfinite(I0) || I0<0.0) continue;
 
 	    // Iphの計算
-	    float Iph = I01*XoneXY +Voc/Rh;
-      
+	    double Iph = I01*XoneXY +Voc/Rh;
+
 	    if( !isfinite(Iph) || Iph<0.0) continue;
 
 	    // absAの計算
-	    float P0 = RsImpMiVmp/etaNsVt*I01;
-	    float P1 = (RsImpMiVmp + Rh*Imp)/Rh;
+	    double P0 = RsImpMiVmp/etaNsVt*I01;
+	    double P1 = (RsImpMiVmp + Rh*Imp)/Rh;
 
-	    float absA, lnZpXY, XYpZ;
+	    double absA, lnZpXY, XYpZ;
 	    if( !isnan(ZpXY) ){  // zが最大、ではなかったら
-		absA = abs(P0*ZpXY+P1);  // ZpXYは上のRhの計算のところで計算している、ｚが最大でない場合
+		absA = fabs(P0*ZpXY+P1);  // ZpXYは上のRhの計算のところで計算している、ｚが最大でない場合
 	    }else{  // ｚが最大の場合
 		if(x > y) lnZpXY = -log(exz-eyz);
 		else lnZpXY = -log(eyz-exz);
 
 		XYpZ = exz-eyz;
 
-		float Atilder = lnZpXY +log( abs(P0 +P1*XYpZ) +abs(XYpZ) );
+		double Atilder = lnZpXY +log( fabs(P0 +P1*XYpZ) +fabs(XYpZ) );
 		absA = exp(Atilder)-1.0;
 	    }
 	    
 	    if( !isfinite(absA) ) continue;
       
 	    // I0dの計算
-	    float W0 = (W01 +W02/eta)/eta;
-	    float I0d = W0*I0;
-	    float etadPerEta = etad/eta;
+	    double W0 = (W01 +W02/eta)/eta;
+	    double I0d = W0*I0;
+	    double etadPerEta = etad/eta;
 
 	    // Rsdの計算
-	    float Rsd = (etadPerEta -alphaSc +TInv)*Rs +etaNsVt/Isc*(exp(-y)-1.0)*W0;
+	    double Rsd = (etadPerEta -alphaSc +TInv)*Rs +etaNsVt/Isc*(exp(-y)-1.0)*W0;
 
 	    // Rhdの計算
-	    float W1 = Rh*( Voc/etaNsVt*( etadPerEta -betaOc +TInv ) -W0 );
-	    float W2 = (Rsd +(Rs+Rh)*alphaSc)*Isc +Rh*I0d -betaOc*Voc;  // +Rh*I0d modified 2024.1.21
+	    double W1 = Rh*( Voc/etaNsVt*( etadPerEta -betaOc +TInv ) -W0 );
+	    double W2 = (Rsd +(Rs+Rh)*alphaSc)*Isc +Rh*I0d -betaOc*Voc;  // +Rh*I0d modified 2024.1.21
 
-	    float RhdPerRh = ( I01*XpXY*W1 +W2 )/(RsIsc-Voc);
+	    double RhdPerRh = ( I01*XpXY*W1 +W2 )/(RsIsc-Voc);
 
 	    // Iphdの計算
-	    float Iphd = ( Rsd -Rs*RhdPerRh +(Rh+Rs)*alphaSc )*Isc/Rh;
+	    double Iphd = ( Rsd -Rs*RhdPerRh +(Rh+Rs)*alphaSc )*Isc/Rh;
 
 	    // absBの計算
-	    float xxx = -Imp*Rsd -gammaMp*Vmp;
-	    float W3 = I01*( ( xxx +VmpPluRsImp*(etadPerEta +TInv) )/etaNsVt -W0 );
-	    float W4 = ( xxx +VmpPluRsImp*RhdPerRh )/Rh +Iphd +I0d;
+	    double xxx = -Imp*Rsd -gammaMp*Vmp;
+	    double W3 = I01*( ( xxx +VmpPluRsImp*(etadPerEta +TInv) )/etaNsVt -W0 );
+	    double W4 = ( xxx +VmpPluRsImp*RhdPerRh )/Rh +Iphd +I0d;
 
-	    float absB;
+	    double absB;
+
 	    if( !isnan(ZpXY) ){  // zが最大、ではなかったら
-		absB = abs(ZpXY*W3 +W4);   // ZpXYはｚが最大でないときは、Rhの計算のところで求めている
+		absB = fabs(ZpXY*W3 +W4);   // ZpXYはｚが最大でないときは、Rhの計算のところで求めている
 	    }else{  // ｚが最大のとき、このときlnZpXY, XYpZはAtilderのところで計算している
-		float Btilder = lnZpXY +log( abs(W3+W4*XYpZ)+abs(XYpZ) );
+		double Btilder = lnZpXY +log( fabs(W3+W4*XYpZ)+fabs(XYpZ) );
 		absB = exp(Btilder)-1.0;
 	    }
 
 	    if( !isfinite(absB) ) continue;
 	    
 	    // Eの計算
-	    float E = absA/absA0 +absB/absB0;
+	    double E = absA/absA0 +absB/absB0;
 	    if(E < EminVal){
 		RsMinVal = Rs;
 		etaMinVal = eta;
@@ -1419,68 +2145,70 @@ __global__ void Search(float *d_Rs0nth, float *d_eta0nth,
     d_Emin[idx] = EminVal;
     d_RhMin[idx] = RhMinVal;
 }
+#endif
 
 /** Rhを計算して返す, Rh==+infもあり得ることに注意（上のSearch()でNaNと<0だけ除外している)
  *  入力：Voc, Isc, Vmp, Imp, NsVt     **********************************************/
-float AdaptiveModel::calcRh(float Rs, float eta) const{
-    float Rh;
-    float etaNsVt = eta*m_NsVt;
-    float x =m_Voc/etaNsVt, y=Rs*m_Isc/etaNsVt, z=(m_Vmp+Rs*m_Imp)/etaNsVt;
+double AdaptiveModel::calcRh(double Rs, double eta) const{
+    double Rh;
+    double etaNsVt = eta*m_NsVt;
+    double x =m_Voc/etaNsVt, y=Rs*m_Isc/etaNsVt, z=(m_Vmp+Rs*m_Imp)/etaNsVt;
     
     if(x>=y && x>=z){
-	float eyx = exp(y-x);
-	float ezx = exp(z-x);
+	double eyx = std::exp(y-x);
+	double ezx = std::exp(z-x);
 	Rh = ( ( m_Vmp +(m_Voc-m_Vmp)*eyx -m_Voc*ezx )
 	       / ( m_Isc-m_Imp +m_Imp*eyx -m_Isc*ezx ) ) - Rs;
     }else if(y >= z){
-	float exy = exp(x-y);
-	float ezy = exp(z-y);
+	double exy = std::exp(x-y);
+	double ezy = std::exp(z-y);
 	Rh = ( ( m_Vmp*exy +m_Voc-m_Vmp -m_Voc*ezy )
 	       / ( (m_Isc-m_Imp)*exy +m_Imp -m_Isc*ezy ) ) - Rs;
     }else{
-	float exz = exp(x-z);
-	float eyz = exp(y-z);
+	double exz = std::exp(x-z);
+	double eyz = std::exp(y-z);
 	Rh = ( ( m_Vmp*exz +(m_Voc-m_Vmp)*eyz -m_Voc )
 	       / ( (m_Isc-m_Imp)*exz +m_Imp*eyz -m_Isc ) ) - Rs;
     }
 
+    // printf("calcRh: Rh=%g\n", Rh);/////////////////////////////t
     return Rh;
 }
 
 /** I0を計算して返す   **************************************************************
  *  入力： Voc, Isc, NsVt  **********************************************************/
-float AdaptiveModel::calcI0(float Rs, float eta, float Rh) const{
-    float etaNsVt = eta*m_NsVt;
-    float x =m_Voc/etaNsVt, y=Rs*m_Isc/etaNsVt;
+double AdaptiveModel::calcI0(double Rs, double eta, double Rh) const{
+    double etaNsVt = eta*m_NsVt;
+    double x =m_Voc/etaNsVt, y=Rs*m_Isc/etaNsVt;
   
-    float I01 = ((Rh +Rs)*m_Isc -m_Voc)/Rh;
+    double I01 = ((Rh +Rs)*m_Isc -m_Voc)/Rh;
       
-    float oneXY;
+    double oneXY;
     if(x>=y){
-	oneXY = exp(-x)/(1.0-exp(y-x));
+	oneXY = std::exp(-x)/(1.0-std::exp(y-x));
     }else{
-	oneXY = exp(-y)/(exp(x-y)-1.0);
+	oneXY = std::exp(-y)/(std::exp(x-y)-1.0);
     }
       
-    float I0 = I01*oneXY;
+    double I0 = I01*oneXY;
     return I0;
 }
 
 /** Iphを計算して返す  **************************************************************
  *  入力：Voc, Isc, NsVt   **********************************************************/
-float AdaptiveModel::calcIph(float Rs, float eta, float Rh) const{
-    float etaNsVt = eta*m_NsVt;
-    float x =m_Voc/etaNsVt, y=Rs*m_Isc/etaNsVt;
+double AdaptiveModel::calcIph(double Rs, double eta, double Rh) const{
+    double etaNsVt = eta*m_NsVt;
+    double x =m_Voc/etaNsVt, y=Rs*m_Isc/etaNsVt;
   
-    float XoneXY;
+    double XoneXY;
     if(x>=y){
-	XoneXY = (1.0-exp(-x))/(1.0-exp(y-x));
+	XoneXY = (1.0-std::exp(-x))/(1.0-std::exp(y-x));
     }else{
-	float exy = exp(x-y);
-	XoneXY = (exy-exp(-y))/(exy-1.0);
+	double exy = std::exp(x-y);
+	XoneXY = (exy-std::exp(-y))/(exy-1.0);
     }
       
-    float Iph = ( ((Rh +Rs )*m_Isc -m_Voc)*XoneXY +m_Voc )/Rh;
+    double Iph = ( ((Rh +Rs )*m_Isc -m_Voc)*XoneXY +m_Voc )/Rh;
     return Iph;
 }
 
@@ -1491,7 +2219,7 @@ double AdaptiveModel::getV(double I) const{
     double bunbo = m_eta*m_NsVt;  // 桁落ち対策  ノート65-10頁
     
     if(std::isinf(m_Rh)){  // Rhが+infのとき 2024.3.28追加
-	if(I>=(m_Iph+0.99*m_I0)) return -INFINITY;
+	if(I>=(m_Iph+0.99*m_I0)) return -std::numeric_limits<double>::infinity();
 	return bunbo*std::log1p((m_Iph - I)/m_I0) -m_Rs*I;
     }
 	
@@ -1531,7 +2259,7 @@ double AdaptiveModel::getI(double V) const{
     double x = m_Rh*((m_Iph+m_I0)*m_Rs+V)/(etaNsVt*(RsPlusRh));
     
     if(a<0.0){/////////////////////t
-    // if(true){//////////////////t
+	// if(true){//////////////////t
 	printf("AM::getI a=%g, x=%g, Rs=%g, Rh=%g, I0=%g, etaNsVt=%g\n", a, x, m_Rs, m_Rh, m_I0, etaNsVt);
 	exit(0);
     }
@@ -1546,8 +2274,8 @@ double AdaptiveModel::getI(double V) const{
  *        etad, alphaSC, betaOc, gammaMp
  *  に対する、各G=GG[0...K-1], T=TT[0,...K-1]に対する5パラメータを計算する
  *  出力：G, T, aNsVt, aIsc, aVoc, aImp, aVmp, aRs, aEta, aRh, aI0, aIph  ***********/
-float AdaptiveModel::calcPCS(double GG[], double TT[]){
-    float Eret = 0.0;
+double AdaptiveModel::calcPCS(double GG[], double TT[]){
+    double Eret = 0.0;
     
     for(int k=0; k<GlobalConstants::K; k++){
 	m_G = GG[k];
@@ -1569,8 +2297,8 @@ float AdaptiveModel::calcPCS(double GG[], double TT[]){
 	calcA0B0();
 
 	// 現在のG,Tに対する５パラメータがセットされる
-	float Emin = calc();
-	if(Emin == INFINITY) return Emin;
+	double Emin = calc();
+	if(Emin == std::numeric_limits<double>::infinity()) return Emin;
 	else if(Eret < Emin) Eret = Emin;
 
 	m_aRs[k] = m_Rs;
@@ -1590,8 +2318,8 @@ float AdaptiveModel::calcPCS(double GG[], double TT[]){
  *        etad, alphaSC, betaOc, gammaMp
  *  に対する、各G=GG[0...K-1], T=TT[0,...K-1]に対する5パラメータを計算する
  *  出力：G, T, aNsVt, aIsc, aVoc, aImp, aVmp, aRs, aEta, aRh, aI0, aIph  ***********/
-float AdaptiveModel::calcPCSGetE(){
-    float Eret = 0.0;
+double AdaptiveModel::calcPCSGetE(){
+    double Eret = 0.0;
     
     for(int k=0; k<GlobalConstants::K; k++){
 	m_G = m_aG[k];
@@ -1608,27 +2336,27 @@ float AdaptiveModel::calcPCSGetE(){
 	m_TmTSTC = m_T - 25.0;
 	m_PmaxSTC = m_ImpSTC*m_VmpSTC;   // いらない？
 	// Tkel = T+273.15;
-	// float kT = 1.380649E-23*Tkel;
+	// double kT = 1.380649E-23*Tkel;
 	m_NsVt = m_aNsVt[k];
 
-	// float Eg = 1.8516E-19 -1.12488E-22*Tkel*Tkel/(Tkel+1108.0);
-	// float Egd = -1.12488E-22*(Tkel*Tkel+2.0*Tkel*1108.0)/( (Tkel+1108.0)*(Tkel+1108.0) );
+	// double Eg = 1.8516E-19 -1.12488E-22*Tkel*Tkel/(Tkel+1108.0);
+	// double Egd = -1.12488E-22*(Tkel*Tkel+2.0*Tkel*1108.0)/( (Tkel+1108.0)*(Tkel+1108.0) );
 	// W01 = 3.0/Tkel -Egd/kT +Eg/(kT*Tkel);
-	// W02 = (Eg/kT -3.0*log(Tkel))*etad;
+	// W02 = (Eg/kT -3.0*logf(Tkel))*etad;
 	m_W01 = m_aW01[k];
 	m_W02 = m_aW02[k];
 
 	m_Isc = m_IscSTC*m_GpGSTC*(1.0+m_alphaSc*m_TmTSTC);
 	m_Voc = m_VocSTC/(1.0-m_deltaOc*m_lnGpGSTC)*(1.0+m_betaOc*m_TmTSTC);
 	m_Vmp = m_VmpSTC*( 1.0/(1.0-m_deltaOc*m_lnGpGSTC) +m_betaOc*m_TmTSTC );
-	float Pmax = m_PmaxSTC*m_GpGSTC/(1.0-m_deltaMp*m_lnGpGSTC)*(1.0+m_gammaMp*m_TmTSTC);
+	double Pmax = m_PmaxSTC*m_GpGSTC/(1.0-m_deltaMp*m_lnGpGSTC)*(1.0+m_gammaMp*m_TmTSTC);
 	m_Imp = Pmax/m_Vmp;
 
 	calcA0B0();
 
 	// 現在のG,Tに対する５パラメータがセットされる
-	float Emin = calc();
-	if(Emin == INFINITY) return Emin;
+	double Emin = calc();
+	if(Emin == std::numeric_limits<double>::infinity()) return Emin;
 	else if(Eret < Emin) Eret = Emin;
 
 	m_aRs[k] = m_Rs;
@@ -1657,43 +2385,43 @@ void AdaptiveModel::getVIjunbi(int k){
  *  入力：Rs0, Rs1, NRs, eta0, eta1, NEta
  *  出力：Rs0, Rs1, eta0, eta1, I0, Iph
  *  関数呼び出し：SearchNoGPU, calcI0, calcIph  *************************************/
-float AdaptiveModel::calcNoGPU(){
-    printf("calcNoGPU\n");///////////////t
-    float Emin;
+double AdaptiveModel::calcNoGPU(){
+    // printf("calcNoGPU\n");///////////////t
+    double Emin;
   
     for(int count=0; count<3; count++){  // 探索範囲変更のループ
     
-	float kRs = exp( log(m_Rs1/m_Rs0) /(m_NRs-1) );
-	float dEta = (m_eta1-m_eta0)/(m_NEta-1);
+	double kRs = std::exp( std::log(m_Rs1/m_Rs0) /(m_NRs-1) );
+	double dEta = (m_eta1-m_eta0)/(m_NEta-1);
 
 	// GPUを使わないサーチの実行
 	Emin = SearchNoGPU(kRs, dEta);
 	
 	// 2024.3.20
 	// ひとつもRh>=0のような条件を満たすRs, etaがなかったら、探索を終わる
-	if(Emin == INFINITY){
+	if(Emin == std::numeric_limits<double>::infinity()){
 	    std::cout << "AdaptiveModel::calcNoGPU()$$ no suitable Rs and eta, Emin==INFINITY\n";///////////////////t
 	    break;
 	}
 	
-	printf("count=%d, Emin=%g, Rs=%g, eta=%g\n", count, Emin, m_Rs, m_eta);/////////////////////t
+	// printf("count=%d, Emin=%g, Rs=%g, eta=%g\n", count, Emin, m_Rs, m_eta);/////////////////////t
 
 	// 最適値が範囲の端から2番目以内だったら、探索範囲を取り直して再探索。
 	if(this->m_Rs <= m_Rs0*pow(kRs, 1.5)){
-	    float a = 1.05*m_Rs0/m_Rs1;
+	    double a = 1.05*m_Rs0/m_Rs1;
 	    m_Rs0 *= a;
 	    m_Rs1 *= a;
-	    printf("New smaller  Rs0=%g, Rs1=%g\n", m_Rs0, m_Rs1);////////////////t
+	    // printf("New smaller  Rs0=%g, Rs1=%g\n", m_Rs0, m_Rs1);////////////////t
 	}else if(m_Rs1/pow(kRs, 1.5) <= this->m_Rs){
-	    float b = 0.95*m_Rs1/m_Rs0;
+	    double b = 0.95*m_Rs1/m_Rs0;
 	    m_Rs0 *= b;
 	    m_Rs1 *= b;
-	    printf("New larger Rs0=%g, Rs1=%g\n", m_Rs0, m_Rs1);////////////////t
+	    // printf("New larger Rs0=%g, Rs1=%g\n", m_Rs0, m_Rs1);////////////////t
 	}else if(m_eta1-1.5*dEta <= this->m_eta){
-	    float eee = m_eta0;
+	    double eee = m_eta0;
 	    m_eta0 = m_eta1-dEta;
 	    m_eta1 = 2.0*m_eta1 -eee -dEta;
-	    printf("New larger  eta0=%g, eta1=%g\n", m_eta0, m_eta1);///////////////t
+	    // printf("New larger  eta0=%g, eta1=%g\n", m_eta0, m_eta1);///////////////t
 	}else{  // 端っこでなかったら、終わる
 	    break;
 	}
@@ -1709,139 +2437,290 @@ float AdaptiveModel::calcNoGPU(){
     return Emin;
 }
 
+/***************************** 2026.10.12-- *************************/
+double AdaptiveModel::calcE(double Rs, double eta){
+    double TInv = 1.0/m_Tkel;
+    
+    double VocMiVmp = m_Voc-m_Vmp;
+    double IscMiImp = m_Isc-m_Imp;
+  
+    double RsIsc = Rs*m_Isc;
+    double RsImp = Rs*m_Imp;
+    double VmpPluRsImp = m_Vmp +RsImp;
+    double RsImpMiVmp = RsImp-m_Vmp;
+    
+    double etaNsVt = eta*m_NsVt;
+    double x =m_Voc/etaNsVt, y=RsIsc/etaNsVt, z=VmpPluRsImp/etaNsVt;
+
+    if(x==y){
+        printf("AdaptiveModel::calcE x==y ---> E=infinity\n");
+        return std::numeric_limits<double>::infinity();
+    }
+	    
+    // Rhの計算
+    double Rh;
+    double ZpXY = NAN;  // Z/(X-Y)もついでにここで計算しておく
+    double eyx, ezx, exy, ezy, exz, eyz;
+	    
+    if(x>=y && x>=z){
+	eyx = std::exp(y-x);
+	ezx = std::exp(z-x);
+	Rh = ( ( m_Vmp +VocMiVmp*eyx -m_Voc*ezx )
+	       / ( IscMiImp +m_Imp*eyx -m_Isc*ezx ) ) - Rs;
+	ZpXY = ezx/(1.0-eyx);
+    }else if(y >= z){
+	exy = std::exp(x-y);
+	ezy = std::exp(z-y);
+	Rh = ( ( m_Vmp*exy +VocMiVmp -m_Voc*ezy )
+	       / ( IscMiImp*exy +m_Imp -m_Isc*ezy ) ) - Rs;
+	ZpXY = ezy/(exy-1.0);
+    }else{
+	exz = std::exp(x-z);
+	eyz = std::exp(y-z);
+	Rh = ( ( m_Vmp*exz +VocMiVmp*eyz -m_Voc )
+	       / ( IscMiImp*exz +m_Imp*eyz -m_Isc ) ) - Rs;
+    }
+    
+    if(std::isnan(Rh) || Rh<=0.0){
+        printf("AdaptiveModel::calcE, std::isnan(Rh) || Rh<=0.0 ---> E=infinity, Rh=%g\n",
+               Rh);
+	// return std::numeric_limits<double>::infinity();
+    }
+        
+    // I0の計算
+    // double I01 = (1.0 +xRs/Rh )*m_Isc -m_Voc/Rh;
+    double I01 = ( (Rh+Rs)*m_Isc -m_Voc )/Rh;
+      
+    double oneXY, XoneXY, XpXY;
+    if(x>=y){
+	double eyx1 = std::exp(y-x);
+	double emx = std::exp(-x);
+	oneXY = emx/(1.0-eyx1);
+	XoneXY = (1.0-emx)/(1.0-eyx1);
+	XpXY = 1.0/(1.0-eyx1);
+    }else{
+	double exy1 = std::exp(x-y);
+	double emy = std::exp(-y);
+	oneXY = emy/(exy1-1.0);
+	XoneXY = (exy1-emy)/(exy1-1.0);
+	XpXY = exy1/(exy1-1.0);
+    }
+      
+    double I0 = I01*oneXY;
+    if(!std::isfinite(I0) || I0<0.0){
+        printf("AdaptiveModel::calcE !std::isfinite(I0) || I0<0.0 ---> E=infinity\n");
+	return std::numeric_limits<double>::infinity();
+    }
+
+    // Iphの計算
+    double Iph = I01*XoneXY +m_Voc/Rh;
+      
+    if(!std::isfinite(Iph) || Iph<0.0){
+        printf("AdaptiveModel::calcE !std::isfinite(Iph) || Iph<0.0 ---> E=infinity\n");
+	return std::numeric_limits<double>::infinity();
+    }
+
+    // absAの計算
+    double P0 = RsImpMiVmp/etaNsVt*I01;
+    double P1 = (RsImpMiVmp +Rh*m_Imp )/Rh;
+
+    double absA, lnZpXY, XYpZ;
+    if( !std::isnan(ZpXY) ){  // zが最大、ではなかったら
+	absA = std::abs(P0*ZpXY+P1);  // ZpXYは上のRhの計算のところで計算している、ｚが最大でない場合
+    }else{  // ｚが最大の場合
+	if(x > y) lnZpXY = -std::log(exz-eyz);
+	else lnZpXY = -std::log(eyz-exz);
+
+	XYpZ = exz-eyz;
+
+	double Atilder = lnZpXY +std::log( std::abs(P0 +P1*XYpZ) +std::abs(XYpZ) );
+	absA = std::exp(Atilder)-1.0;
+    }
+	    
+    if(!std::isfinite(absA)){
+        printf("AdaptiveModel::calcE !std::isfinite(absA) ---> E=infinity\n");
+        return std::numeric_limits<double>::infinity();
+    }
+      
+    // I0dの計算
+    double W0 = (m_W01 +m_W02/eta)/eta;
+    double I0d = W0*I0;
+    double etadPerEta = m_etad/eta;
+
+    // Rsdの計算
+    double Rsd = (etadPerEta -m_alphaSc +TInv)*Rs +etaNsVt/m_Isc*(std::exp(-y)-1.0)*W0;
+
+    // Rhdの計算
+    double W1 = Rh*( m_Voc/etaNsVt*( etadPerEta -m_betaOc +TInv ) -W0 );
+    double W2 = (Rsd +(Rs+Rh)*m_alphaSc)*m_Isc +Rh*I0d -m_betaOc*m_Voc;  // +Rh*I0d modified 2024.1.21
+
+    double RhdPerRh = ( I01*XpXY*W1 +W2 )/(RsIsc-m_Voc);
+
+    // Iphdの計算
+    // double Iphd = Isc/Rh*Rsd -RsIsc/(Rh*Rh)*Rhd +(1.0+xRs/Rh)*alphaSc*Isc;
+    double Iphd = (Rsd -Rs*RhdPerRh +(Rs+Rh)*m_alphaSc)*m_Isc/Rh;
+
+    // absBの計算
+    double xxx = -m_Imp*Rsd -m_gammaMp*m_Vmp;
+    double W3 = I01*( ( xxx +VmpPluRsImp*(etadPerEta +TInv) )/etaNsVt -W0 );
+    double W4 = ( xxx +VmpPluRsImp*RhdPerRh )/Rh +Iphd +I0d;
+
+    double absB;
+    if( !std::isnan(ZpXY) ){  // zが最大、ではなかったら
+	absB = std::abs(ZpXY*W3 +W4);   // ZpXYはｚが最大でないときは、Rhの計算のところで求めている
+    }else{  // ｚが最大のとき、このときlnZpXY, XYpZはAtilderのところで計算している
+	double Btilder = lnZpXY +std::log( std::abs(W3+W4*XYpZ)+std::abs(XYpZ) );
+	absB = std::exp(Btilder)-1.0;
+    }
+
+    if(!std::isfinite(absB)){
+        printf("AdaptiveModel::calcE !std::isfinite(absB) ---> E=infinity\n");
+        return std::numeric_limits<double>::infinity();
+    }
+    
+    // Eの計算
+    double E = absA/m_absA0 +absB/m_absB0;
+    // this->m_Rs = Rs;
+    // this->m_eta = eta;
+    // this->m_Rh = Rh;
+    
+    return E;
+}
+
 /** [Rs0, Rs1]x[eta0, eta1]の範囲内でEを最小にするRs, etaを探索、設定してEminを返す **
  *  入力： Tkel, Voc, Vmp, Isc, Imp, Rs0, eta0, NRs, NEta, NsVt
  *  出力： Rs, eta, Rh     **********************************************************/
-float AdaptiveModel::SearchNoGPU(float kRs, float dEta){
-    float TInv = 1.0/m_Tkel;
+double AdaptiveModel::SearchNoGPU(double kRs, double dEta){
+    double TInv = 1.0/m_Tkel;
     
-    float VocMiVmp = m_Voc-m_Vmp;
-    float IscMiImp = m_Isc-m_Imp;
+    double VocMiVmp = m_Voc-m_Vmp;
+    double IscMiImp = m_Isc-m_Imp;
   
-    float Emin = INFINITY;
+    double Emin = std::numeric_limits<double>::infinity();
 
-    float xRs = m_Rs0;  // Global Memroy内の配列からRs探索範囲の下限を読み取る
+    double xRs = m_Rs0;  // Global Memroy内の配列からRs探索範囲の下限を読み取る
     for(int i=0; i<m_NRs; i++){ // Rsのループ
 	
-	float RsIsc = xRs*m_Isc;
-	float RsImp = xRs*m_Imp;
-	float VmpPluRsImp = m_Vmp +RsImp;
-	float RsImpMiVmp = RsImp-m_Vmp;
+	double RsIsc = xRs*m_Isc;
+	double RsImp = xRs*m_Imp;
+	double VmpPluRsImp = m_Vmp +RsImp;
+	double RsImpMiVmp = RsImp-m_Vmp;
     
-	float xeta = m_eta0;  // Global Memroy内の配列からRs探索範囲の下限を読み取る
+	double xeta = m_eta0;  // Global Memroy内の配列からRs探索範囲の下限を読み取る
 	for(int j=0; j<m_NEta; j++){ // etaのループ
 	    
-	    float etaNsVt = xeta*m_NsVt;
-	    float x =m_Voc/etaNsVt, y=RsIsc/etaNsVt, z=VmpPluRsImp/etaNsVt;
+	    double etaNsVt = xeta*m_NsVt;
+	    double x =m_Voc/etaNsVt, y=RsIsc/etaNsVt, z=VmpPluRsImp/etaNsVt;
 
 	    if(x==y) continue;
 	    
 	    // Rhの計算
-	    float Rh;
-	    float ZpXY = NAN;  // Z/(X-Y)もついでにここで計算しておく
-	    float eyx, ezx, exy, ezy, exz, eyz;
+	    double Rh;
+	    double ZpXY = NAN;  // Z/(X-Y)もついでにここで計算しておく
+	    double eyx, ezx, exy, ezy, exz, eyz;
 	    
 	    if(x>=y && x>=z){
-		eyx = exp(y-x);
-		ezx = exp(z-x);
+		eyx = std::exp(y-x);
+		ezx = std::exp(z-x);
 		Rh = ( ( m_Vmp +VocMiVmp*eyx -m_Voc*ezx )
 		       / ( IscMiImp +m_Imp*eyx -m_Isc*ezx ) ) - xRs;
 		ZpXY = ezx/(1.0-eyx);
 	    }else if(y >= z){
-		exy = exp(x-y);
-		ezy = exp(z-y);
+		exy = std::exp(x-y);
+		ezy = std::exp(z-y);
 		Rh = ( ( m_Vmp*exy +VocMiVmp -m_Voc*ezy )
 		       / ( IscMiImp*exy +m_Imp -m_Isc*ezy ) ) - xRs;
 		ZpXY = ezy/(exy-1.0);
 	    }else{
-		exz = exp(x-z);
-		eyz = exp(y-z);
+		exz = std::exp(x-z);
+		eyz = std::exp(y-z);
 		Rh = ( ( m_Vmp*exz +VocMiVmp*eyz -m_Voc )
 		       / ( IscMiImp*exz +m_Imp*eyz -m_Isc ) ) - xRs;
 	    }
 
-	    if(isnan(Rh) || Rh<=0.0) continue;
+	    if(std::isnan(Rh) || Rh<=0.0) continue;
 
 	    // I0の計算
-	    float I01 = (1.0 +xRs/Rh )*m_Isc -m_Voc/Rh;
+	    // double I01 = (1.0 +xRs/Rh )*m_Isc -m_Voc/Rh;
+	    double I01 = ( (Rh+xRs)*m_Isc -m_Voc )/Rh;
       
-	    float oneXY, XoneXY, XpXY;
+	    double oneXY, XoneXY, XpXY;
 	    if(x>=y){
-		float eyx1 = exp(y-x);
-		float emx = exp(-x);
+		double eyx1 = std::exp(y-x);
+		double emx = std::exp(-x);
 		oneXY = emx/(1.0-eyx1);
 		XoneXY = (1.0-emx)/(1.0-eyx1);
 		XpXY = 1.0/(1.0-eyx1);
 	    }else{
-		float exy1 = exp(x-y);
-		float emy = exp(-y);
+		double exy1 = std::exp(x-y);
+		double emy = std::exp(-y);
 		oneXY = emy/(exy1-1.0);
 		XoneXY = (exy1-emy)/(exy1-1.0);
 		XpXY = exy1/(exy1-1.0);
 	    }
       
-	    float I0 = I01*oneXY;
-	    if(!isfinite(I0) || I0<0.0) continue;
+	    double I0 = I01*oneXY;
+	    if(!std::isfinite(I0) || I0<0.0) continue;
 
 	    // Iphの計算
-	    float Iph = I01*XoneXY +m_Voc/Rh;
+	    double Iph = I01*XoneXY +m_Voc/Rh;
       
-	    if(!isfinite(Iph) || Iph<0.0) continue;
+	    if(!std::isfinite(Iph) || Iph<0.0) continue;
 
 	    // absAの計算
-	    float P0 = RsImpMiVmp/etaNsVt*I01;
-	    float P1 = (RsImpMiVmp +Rh*m_Imp )/Rh;
+	    double P0 = RsImpMiVmp/etaNsVt*I01;
+	    double P1 = (RsImpMiVmp +Rh*m_Imp )/Rh;
 
-	    float absA, lnZpXY, XYpZ;
-	    if( !isnan(ZpXY) ){  // zが最大、ではなかったら
-		absA = abs(P0*ZpXY+P1);  // ZpXYは上のRhの計算のところで計算している、ｚが最大でない場合
+	    double absA, lnZpXY, XYpZ;
+	    if( !std::isnan(ZpXY) ){  // zが最大、ではなかったら
+		absA = std::abs(P0*ZpXY+P1);  // ZpXYは上のRhの計算のところで計算している、ｚが最大でない場合
 	    }else{  // ｚが最大の場合
-		if(x > y) lnZpXY = -log(exz-eyz);
-		else lnZpXY = -log(eyz-exz);
+		if(x > y) lnZpXY = -std::log(exz-eyz);
+		else lnZpXY = -std::log(eyz-exz);
 
 		XYpZ = exz-eyz;
 
-		float Atilder = lnZpXY +log( abs(P0 +P1*XYpZ) +abs(XYpZ) );
-		absA = exp(Atilder)-1.0;
+		double Atilder = lnZpXY +std::log( std::abs(P0 +P1*XYpZ) +std::abs(XYpZ) );
+		absA = std::exp(Atilder)-1.0;
 	    }
 	    
-	    if(!isfinite(absA)) continue;
+	    if(!std::isfinite(absA)) continue;
       
 	    // I0dの計算
-	    float W0 = (m_W01 +m_W02/xeta)/xeta;
-	    float I0d = W0*I0;
-	    float etadPerEta = m_etad/xeta;
+	    double W0 = (m_W01 +m_W02/xeta)/xeta;
+	    double I0d = W0*I0;
+	    double etadPerEta = m_etad/xeta;
 
 	    // Rsdの計算
-	    float Rsd = (etadPerEta -m_alphaSc +TInv)*xRs +etaNsVt/m_Isc*(exp(-y)-1.0)*W0;
+	    double Rsd = (etadPerEta -m_alphaSc +TInv)*xRs +etaNsVt/m_Isc*(std::exp(-y)-1.0)*W0;
 
 	    // Rhdの計算
-	    float W1 = Rh*( m_Voc/etaNsVt*( etadPerEta -m_betaOc +TInv ) -W0 );
-	    float W2 = (Rsd +(xRs+Rh)*m_alphaSc)*m_Isc +Rh*I0d -m_betaOc*m_Voc;  // +Rh*I0d modified 2024.1.21
+	    double W1 = Rh*( m_Voc/etaNsVt*( etadPerEta -m_betaOc +TInv ) -W0 );
+	    double W2 = (Rsd +(xRs+Rh)*m_alphaSc)*m_Isc +Rh*I0d -m_betaOc*m_Voc;  // +Rh*I0d modified 2024.1.21
 
-	    float RhdPerRh = ( I01*XpXY*W1 +W2 )/(RsIsc-m_Voc);
+	    double RhdPerRh = ( I01*XpXY*W1 +W2 )/(RsIsc-m_Voc);
 
 	    // Iphdの計算
-	    // float Iphd = Isc/Rh*Rsd -RsIsc/(Rh*Rh)*Rhd +(1.0+xRs/Rh)*alphaSc*Isc;
-	    float Iphd = (Rsd -xRs*RhdPerRh +(xRs+Rh)*m_alphaSc)*m_Isc/Rh;
+	    // double Iphd = Isc/Rh*Rsd -RsIsc/(Rh*Rh)*Rhd +(1.0+xRs/Rh)*alphaSc*Isc;
+	    double Iphd = (Rsd -xRs*RhdPerRh +(xRs+Rh)*m_alphaSc)*m_Isc/Rh;
 
 	    // absBの計算
-	    float xxx = -m_Imp*Rsd -m_gammaMp*m_Vmp;
-	    float W3 = I01*( ( xxx +VmpPluRsImp*(etadPerEta +TInv) )/etaNsVt -W0 );
-	    float W4 = ( xxx +VmpPluRsImp*RhdPerRh )/Rh +Iphd +I0d;
+	    double xxx = -m_Imp*Rsd -m_gammaMp*m_Vmp;
+	    double W3 = I01*( ( xxx +VmpPluRsImp*(etadPerEta +TInv) )/etaNsVt -W0 );
+	    double W4 = ( xxx +VmpPluRsImp*RhdPerRh )/Rh +Iphd +I0d;
 
-	    float absB;
-	    if( !isnan(ZpXY) ){  // zが最大、ではなかったら
-		absB = abs(ZpXY*W3 +W4);   // ZpXYはｚが最大でないときは、Rhの計算のところで求めている
+	    double absB;
+	    if( !std::isnan(ZpXY) ){  // zが最大、ではなかったら
+		absB = std::abs(ZpXY*W3 +W4);   // ZpXYはｚが最大でないときは、Rhの計算のところで求めている
 	    }else{  // ｚが最大のとき、このときlnZpXY, XYpZはAtilderのところで計算している
-		float Btilder = lnZpXY +log( abs(W3+W4*XYpZ)+abs(XYpZ) );
-		absB = exp(Btilder)-1.0;
+		double Btilder = lnZpXY +std::log( std::abs(W3+W4*XYpZ)+std::abs(XYpZ) );
+		absB = std::exp(Btilder)-1.0;
 	    }
 
-	    if(!isfinite(absB)) continue;
+	    if(!std::isfinite(absB)) continue;
 	    
 	    // Eの計算
-	    float E = absA/m_absA0 +absB/m_absB0;
+	    double E = absA/m_absA0 +absB/m_absB0;
 	    if(E < Emin){
 		this->m_Rs = xRs;
 		this->m_eta = xeta;
@@ -1875,13 +2754,31 @@ void AdaptiveModel::set5params(double Rss, double etaa, double Rhh, double I00, 
     m_aNsVt[k] = NsVtt;
 }
 
+/******************************************************************************/
+void AdaptiveModel::setGT(double G, double T){
+    m_G = G;
+    m_T = T;
+    
+    setVars();
+    calcA0B0();
+    calc();    // added Mar.4, 2026
+    m_Imax = getI(m_Vmin);
+    m_Vmax = getV(m_Imin);
+}
+
+/****** Suppose refreshment after set5params *******/
+void AdaptiveModel::refreshImaxVmax(){
+    m_Imax = getI(m_Vmin);
+    m_Vmax = getV(m_Imin);
+}    
+
 /** STCパラメータをセットする   ****************************************************
  *  出力： IscSTC, VocSTC, ImpSTC, VmpSTC      *************************************/
 void AdaptiveModel::setSTCparams(double X[4]){
-    m_IscSTC = static_cast<float>(X[0]);
-    m_VocSTC = static_cast<float>(X[1]);
-    m_ImpSTC = static_cast<float>(X[2]*m_IscSTC);
-    m_VmpSTC = static_cast<float>(X[3]*m_VocSTC);
+    m_IscSTC = static_cast<double>(X[0]);
+    m_VocSTC = static_cast<double>(X[1]);
+    m_ImpSTC = static_cast<double>(X[2]*m_IscSTC);
+    m_VmpSTC = static_cast<double>(X[3]*m_VocSTC);
 
     setVars();
     calcA0B0();
@@ -1931,6 +2828,7 @@ void FiveParams::print() const{
 #include <iostream>
 #include <iomanip>
 #include <limits>
+#include <cmath>   // 2026.4.13
 
 template<typename T>
 class Bisection{
@@ -1947,29 +2845,36 @@ public:
 /** ２分法による零点探索  x1 < x2,  f(x1)*f(x2)<0 であること  ***********************
  *  fがゼロになるxを返す   **********************************************************/
 template<typename T> double Bisection<T>::search(double x1, double x2){
-    double xLimit = abs(x1)<abs(x2) ? 1.0E-12*abs(x2) : 1.0E-12*abs(x1);
+    double xLimit = std::abs(x1)<std::abs(x2) ? 1.0E-12*std::abs(x2) : 1.0E-12*std::abs(x1);
+    double f1 {p->func(x1)};
+    double f2 {p->func(x2)};
 	
-    if(p->func(x1)<0.0 && p->func(x2)>0.0){
+    // int count {0};////////////////////////////
+    if(f1<0.0 && f2>0.0){
 	while(true){
 	    double xmid = (x1+x2)*0.5;
 	    double fmid = p->func(xmid);
 	    if(fmid <= 0.0) x1 = xmid;
 	    else x2 = xmid;
-	    // if( abs(fmid)<1.0E-8  || x2-x1 < xLimit ) return xmid;
+	    // if( std::abs(fmid)<1.0E-8  || x2-x1 < xLimit ) return xmid;
 	    if( x2-x1 < xLimit ) return xmid;
+	    // if(count%10==0) printf("count=%d, x2-x1=%g, xLimit=%g\n", count, x2-x1, xLimit);///////////////////
+	    // count++;////////////////////////////////
 	}
-    }else if(p->func(x1)>0.0 && p->func(x2)<0.0){
+    }else if(f1>0.0 && f2<0.0){
 	while(true){
 	    double xmid = (x1+x2)*0.5;
 	    double fmid = p->func(xmid);
 	    if(fmid >= 0.0) x1 = xmid;
 	    else x2 = xmid;
-	    // if( abs(fmid)<1.0E-8 || x2-x1 < xLimit ) return xmid;
+	    // if( std::abs(fmid)<1.0E-8 || x2-x1 < xLimit ) return xmid;
 	    if( x2-x1 < xLimit ) return xmid;
+	    // if(count%10==0) printf("count=%d, x2-x1=%g, xLimit=%g\n", count, x2-x1, xLimit);///////////////////
+	    // count++;
 	}
-    }else if(p->func(x1)==0.0){
+    }else if(f1==0.0){
 	return x1;
-    }else if(p->func(x2)==0.0){
+    }else if(f2==0.0){
 	return x2;
     }else{
 	return std::numeric_limits<double>::quiet_NaN();
@@ -1978,29 +2883,31 @@ template<typename T> double Bisection<T>::search(double x1, double x2){
 
 /***************** func2 *************************************************/
 template<typename T> double Bisection<T>::search2(double x1, double x2){
-    double xLimit = abs(x1)<abs(x2) ? 1.0E-12*abs(x2) : 1.0E-12*abs(x1);
+    double xLimit = std::abs(x1)<std::abs(x2) ? 1.0E-12*std::abs(x2) : 1.0E-12*std::abs(x1);
+    double f1 {p->func2(x1)};
+    double f2 {p->func2(x2)};
 	
-    if(p->func2(x1)<0.0 && p->func2(x2)>0.0){
+    if(f1<0.0 && f2>0.0){
 	while(true){
 	    double xmid = (x1+x2)*0.5;
 	    double fmid = p->func2(xmid);
 	    if(fmid <= 0.0) x1 = xmid;
 	    else x2 = xmid;
-	    // if( abs(fmid)<1.0E-8  || x2-x1 < xLimit ) return xmid;
+	    // if( std::abs(fmid)<1.0E-8  || x2-x1 < xLimit ) return xmid;
 	    if( x2-x1 < xLimit ) return xmid;
 	}
-    }else if(p->func2(x1)>0.0 && p->func2(x2)<0.0){
+    }else if(f1>0.0 && f2<0.0){
 	while(true){
 	    double xmid = (x1+x2)*0.5;
 	    double fmid = p->func2(xmid);
 	    if(fmid >= 0.0) x1 = xmid;
 	    else x2 = xmid;
-	    // if( abs(fmid)<1.0E-8 || x2-x1 < xLimit ) return xmid;
+	    // if( std::abs(fmid)<1.0E-8 || x2-x1 < xLimit ) return xmid;
 	    if( x2-x1 < xLimit ) return xmid;
 	}
-    }else if(p->func2(x1)==0.0){
+    }else if(f1==0.0){
 	return x1;
-    }else if(p->func2(x2)==0.0){
+    }else if(f2==0.0){
 	return x2;
     }else{
 	return std::numeric_limits<double>::quiet_NaN();
@@ -2015,7 +2922,9 @@ template<typename T> double Bisection<T>::search2(double x1, double x2){
 #define __SUBSTRING_HH
 
 #include <iostream>
+#if !defined(UBUNTU)
 #include <cuda/std/limits>  // numeric_limits
+#endif
 #include <cmath>  // std::log
 #include <vector>
 #include "globalConstants.hh"
@@ -2031,18 +2940,16 @@ struct FiveParamsPlus{
 
 class Substring{
 private:
-    GlobalConstants m_gc;
+    GlobalConstants &m_gc;
     AdaptiveModel m_amInit;
-    std::vector<AdaptiveModel> m_vam;
-    std::vector<int> m_vamNum;
     int m_vamNumSum {0};
     
     // コンストラクタでセットされる
-    float m_G;   // W/m^2
-    float m_T;   // degC
-    float m_Tkel;
-    float m_kT;
-    float m_etabVt;
+    double m_G;   // W/m^2
+    double m_T;   // degC
+    double m_Tkel;
+    double m_kT;
+    double m_etabVt;
     double m_Ib0;
     double m_lnIb0;
 
@@ -2065,14 +2972,16 @@ private:
     double m_ImaxMax;
     double m_ImaxMin;
     double m_nVmin;
-    double m_IbMax {1000.0};
+    const double m_IbMax {1000.0};
     double m_VbMin;
 public:
+    std::vector<AdaptiveModel> m_vam;
+    std::vector<int> m_vamNum;
     // Constructor
-    Substring(GlobalConstants gcc, float GG, float TT);
+    Substring(GlobalConstants &gcc, double GG, double TT);
     
-    Substring(GlobalConstants gcc, float GG, float TT,
-	      float IscSTC, float VocSTC, float ImpSTC, float VmpSTC);
+    Substring(GlobalConstants gcc, double GG, double TT,
+	      double IscSTC, double VocSTC, double ImpSTC, double VmpSTC);
 
     double getI(double V);
     double getV(double I);
@@ -2083,21 +2992,25 @@ public:
     bool getBypassDiodeOn() const{ return m_bypassDiodeOn; }
     
     double getIb0() const{ return m_Ib0; }
-    float getEtabVt() const{ return m_etabVt; }
-    float getIsc() const{ return m_amInit.getIsc(); }
+    double getEtabVt() const{ return m_etabVt; }
+    double getIsc() const{ return m_amInit.getIsc(); }
 
-    float setVars(double G[], double T[]);
-    float setVarsGetE();
+    void setGT(double G, double T);
+    void refreshMaxMin();
+
+    double setVars(double G[], double T[]);
+    double setVarsGetE();
     
     void getVIjunbi(int k);
     void getVIafter(int k);
     
     double getIb0(int k) const{ return m_aIb0[k]; };
     double getEtabVt(int k) const{ return m_aEtabVt[k]; }
-    float getIsc(int k) const{ return m_amInit.getIsc(k); }
+    double getIsc(int k) const{ return m_amInit.getIsc(k); }
     
     bool getBypassDiodeOn(int k) const{ return m_aBypassDiodeOn[k]; }
 
+    void addAM(AdaptiveModel &am, int amNum);
     void addAM(double X[4], int amNum);
     void setAM_STCparams(double X[4]);
 
@@ -2116,7 +3029,7 @@ public:
 #include "substring.hh"
 // #include "adaptiveModel.hh"
 // #include "bisection.hh"
-#include <cfloat>  // DBL_MAX
+// #include <cfloat>  // DBL_MAX
 #include <stdexcept>
 #include <iostream>
 #include <string>
@@ -2124,7 +3037,7 @@ public:
 /** Constructor     ****************************************************************
  *  出力：m_gc, m_amInit, m_G, m_T, m_Tkel, m_kT, m_etabVt, m_Ib0, m_lnIb0
  *  関数呼び出し：AdaptiveModelのコンストラクター    *******************************/
-Substring::Substring(GlobalConstants gcc, float GG, float TT): m_gc{gcc}, m_amInit{gcc,GG,TT},
+Substring::Substring(GlobalConstants &gcc, double GG, double TT): m_gc{gcc}, m_amInit{gcc,GG,TT},
 							       m_G{GG}, m_T{TT}{
     m_Tkel = TT+273.15;
     m_kT = 1.380649E-23*m_Tkel;
@@ -2139,14 +3052,14 @@ Substring::Substring(GlobalConstants gcc, float GG, float TT): m_gc{gcc}, m_amIn
     m_nVmin = m_gc.Ns_sub*m_amInit.getVmin();
     m_VbMin = -m_etabVt*std::log(m_IbMax/m_Ib0+1.0);
 
-    m_VbypassDiodeOn = -m_etabVt*log(1.0E-3/m_Ib0 +1);  // 1mA以上ならオンとみなす    
+    m_VbypassDiodeOn = -m_etabVt*log(1.0E-3/m_Ib0 +1);  // 1mA以上ならオンとみなす
 }
 
 /** Constructor    ******************************************************************
  *  出力：m_gc, m_amInit, m_G, m_T, m_Tkel, m_kT, m_etabVt, m_Ib0, m_lnIb0
  *  関数呼び出し：AdaptiveModelのコンストラクター    *******************************/
-Substring::Substring(GlobalConstants gcc, float GG, float TT,
-		     float IscSTC, float VocSTC, float ImpSTC, float VmpSTC)
+Substring::Substring(GlobalConstants gcc, double GG, double TT,
+		     double IscSTC, double VocSTC, double ImpSTC, double VmpSTC)
     : m_gc{gcc}, m_amInit{IscSTC, VocSTC, ImpSTC, VmpSTC,
 		      gcc.alphaSc, gcc.betaOc, gcc.gammaMp, GG, TT, gcc.Ns_sub, gcc},
       m_G{GG}, m_T{TT}{
@@ -2156,7 +3069,7 @@ Substring::Substring(GlobalConstants gcc, float GG, float TT,
     m_Ib0 = m_gc.IscSTC*(1.0+m_gc.alphaSc*(TT-25.0))/( exp(0.6/(m_etabVt))-1.0 );
     m_lnIb0 = log(m_Ib0);
 
-    float Emin = m_amInit.calc();
+    double Emin = m_amInit.calc();
     
     // printf("For datasheet values, Rs=%g, eta=%g, Rh=%g, I0=%g, Iph=%g, Emin=%g Substring::Substring\n",
     // 	   m_amInit.getRs(),m_amInit.getEta(), m_amInit.getRh(), m_amInit.getI0(), m_amInit.getIph(), Emin);//////////t
@@ -2193,7 +3106,6 @@ double Substring::func2(double Ic) const{
     return Vcells - m_Vfunc2;
 }
 
-
 /** Calculate substring voltage V (V) for current I (A)    **************************
  *  入力： m_Ib0, m_etabVt, m_lnIb0
  *  出力： m_bypassDiodeOn, m_Ifunc
@@ -2201,7 +3113,8 @@ double Substring::func2(double Ic) const{
 double Substring::getV(double I){
     m_bypassDiodeOn = false;
     
-    double x1 {cuda::std::numeric_limits<double>::min()};
+    // double x1 {cuda::std::numeric_limits<double>::min()};
+    double x1 {std::numeric_limits<double>::min()};
     double x2;
     if(I>=0.0) x2 = I/m_Ib0+1.0;
     else x2 = 1.0;
@@ -2234,7 +3147,7 @@ double Substring::func(double x) const{
  *  出力： m_aG[], m_aT[], m_aEtabVt[], m_aIb0[], m_aLnIb0[]
  *  関数呼び出し： AdaptiveModel::calcPCS
  *  戻り値： AdaptiveModel::calcのE値     *******************************************/
-float Substring::setVars(double GG[], double TT[]){
+double Substring::setVars(double GG[], double TT[]){
     for(int k=0; k<m_gc.K; k++){
 	m_aG[k] = GG[k];
 	m_aT[k] = TT[k];
@@ -2260,7 +3173,7 @@ float Substring::setVars(double GG[], double TT[]){
  *  出力： m_aG[], m_aT[], m_aEtabVt[], m_aIb0[], m_aLnIb0[]
  *  関数呼び出し： AdaptiveModel::calcPCS
  *  戻り値： AdaptiveModel::calcのE値     *******************************************/
-float Substring::setVarsGetE(){
+double Substring::setVarsGetE(){
     // for(int k=0; k<m_gc.K; k++){
     // 	m_aG[k] = GG[k];
     // 	m_aT[k] = TT[k];
@@ -2279,6 +3192,58 @@ float Substring::setVarsGetE(){
 
     // return m_amInit.calcPCS(GG, TT);
     return m_amInit.calcPCSGetE();
+}
+
+/***********************************************************************/
+void Substring::setGT(double G, double T){
+    m_G = G;
+    m_T = T;
+    m_amInit.setGT(G, T);
+    for(int i=0; i<m_vam.size(); i++) m_vam[i].setGT(G, T);
+
+    m_Tkel = m_T+273.15;
+    m_kT = 1.380649E-23*m_Tkel;
+    m_etabVt = 1.1*m_kT/1.602176634E-19;
+    m_Ib0 = m_gc.IscSTC*(1.0+m_gc.alphaSc*(m_T-25.0))/( exp(0.6/(m_etabVt))-1.0 );
+    m_lnIb0 = log(m_Ib0);
+
+    m_ImaxMax = m_amInit.getImax();
+    m_ImaxMin = m_amInit.getImax();
+    m_VmaxInit = m_amInit.getVmax();
+    m_VmaxSum = m_VmaxInit*m_gc.Ns_sub;
+    for(int i=0; i<m_vam.size(); i++){
+	double Imax {m_vam[i].getImax()};
+	if(Imax > m_ImaxMax) m_ImaxMax = Imax;
+	if(Imax < m_ImaxMin) m_ImaxMin = Imax;
+	
+	double Vmax {m_vam[i].getVmax()};
+	m_VmaxSum -= m_VmaxInit*m_vamNum[i];
+	m_VmaxSum += Vmax*m_vamNum[i];
+    }
+    
+    // m_nVmin = m_gc.Ns_sub*m_amInit.getVmin();
+    m_VbMin = -m_etabVt*std::log(m_IbMax/m_Ib0+1.0);
+    m_VbypassDiodeOn = -m_etabVt*log(1.0E-3/m_Ib0 +1);  // 1mA以上ならオンとみなす    
+}
+
+/****** Suppose refreshment after set5params of adaptiveModel ******/
+void Substring::refreshMaxMin(){
+    m_amInit.refreshImaxVmax();
+    for(int i=0; i<m_vam.size(); i++) m_vam[i].refreshImaxVmax();
+    
+    m_ImaxMax = m_amInit.getImax();
+    m_ImaxMin = m_amInit.getImax();
+    m_VmaxInit = m_amInit.getVmax();
+    m_VmaxSum = m_VmaxInit*m_gc.Ns_sub;
+    for(int i=0; i<m_vam.size(); i++){
+	double Imax {m_vam[i].getImax()};
+	if(Imax > m_ImaxMax) m_ImaxMax = Imax;
+	if(Imax < m_ImaxMin) m_ImaxMin = Imax;
+	
+	double Vmax {m_vam[i].getVmax()};
+	m_VmaxSum -= m_VmaxInit*m_vamNum[i];
+	m_VmaxSum += Vmax*m_vamNum[i];
+    }
 }
 
 /** setVarsのあと、Preparation of getV(Ik), getI(Vk) for k   ************************
@@ -2301,14 +3266,10 @@ void Substring::getVIafter(int k){
 }
 
 /********************************************************************************/
-void Substring::addAM(double X[4], int amNum){
-    AdaptiveModel am {static_cast<float>(X[0]), static_cast<float>(X[1]),
-		      static_cast<float>(X[2]*X[0]),
-		      static_cast<float>(X[3]*X[1]),
-		      m_gc.alphaSc, m_gc.betaOc, m_gc.gammaMp, m_G, m_T, 1, m_gc};
+void Substring::addAM(AdaptiveModel &am, int amNum){
     m_vam.push_back(am);
     m_vamNum.push_back(amNum);
-    printf("ImaxMax=%g, ImaxMin=%g, VmaxSum=%g\n", m_ImaxMax, m_ImaxMin, m_VmaxSum);/////////
+    // printf("ImaxMax=%g, ImaxMin=%g, VmaxSum=%g\n", m_ImaxMax, m_ImaxMin, m_VmaxSum);/////////
     double Imax {am.getImax()};
     if(Imax > m_ImaxMax) m_ImaxMax = Imax;
     if(Imax < m_ImaxMin) m_ImaxMin = Imax;
@@ -2316,7 +3277,26 @@ void Substring::addAM(double X[4], int amNum){
     m_VmaxSum -= m_VmaxInit*amNum;
     m_VmaxSum += Vmax*amNum;
     m_vamNumSum += amNum;
-    printf("ImaxMax=%g, ImaxMin=%g, VmaxSum=%g\n", m_ImaxMax, m_ImaxMin, m_VmaxSum);/////////
+    // printf("ImaxMax=%g, ImaxMin=%g, VmaxSum=%g\n", m_ImaxMax, m_ImaxMin, m_VmaxSum);/////////
+}
+
+/********************************************************************************/
+void Substring::addAM(double X[4], int amNum){
+    AdaptiveModel am {static_cast<double>(X[0]), static_cast<double>(X[1]),
+		      static_cast<double>(X[2]*X[0]),
+		      static_cast<double>(X[3]*X[1]),
+		      m_gc.alphaSc, m_gc.betaOc, m_gc.gammaMp, m_G, m_T, 1, m_gc};
+    m_vam.push_back(am);
+    m_vamNum.push_back(amNum);
+    // printf("ImaxMax=%g, ImaxMin=%g, VmaxSum=%g\n", m_ImaxMax, m_ImaxMin, m_VmaxSum);/////////
+    double Imax {am.getImax()};
+    if(Imax > m_ImaxMax) m_ImaxMax = Imax;
+    if(Imax < m_ImaxMin) m_ImaxMin = Imax;
+    double Vmax {am.getVmax()};
+    m_VmaxSum -= m_VmaxInit*amNum;
+    m_VmaxSum += Vmax*amNum;
+    m_vamNumSum += amNum;
+    // printf("ImaxMax=%g, ImaxMin=%g, VmaxSum=%g\n", m_ImaxMax, m_ImaxMin, m_VmaxSum);/////////
 }
 
 /** AdaptiveModel m_amInitのSTCパラメータをセットする   ********************************
@@ -2368,24 +3348,26 @@ void FiveParamsPlus::print() const{
 #include <vector>
 #include <cmath>
 #include <limits>
+#include <random>  // for default_random_engine
 #include "globalConstants.hh"
 #include "substring.hh"
 
 class StringModel{
 private:
-    GlobalConstants m_gc;
+    GlobalConstants &m_gc;
 
-    float m_G;   // W/m^2
-    float m_T;   // degC
+    double m_G;   // W/m^2
+    double m_T;   // degC
 
     Substring m_ssInit;
-    std::vector<Substring> m_vss;  // publicにする 2024.6.8 やめる
+    int m_vssNumSum {0};
     
-    float m_etabVt;
+    double m_etabVt;
     double m_Ib0;  // バイパスダイオードの反転飽和電流
 
     double m_IscSub, m_Vmin, m_Vmax;
-    double m_Ib099, m_IscSub2;
+    double m_mIb099;
+    double m_IscSub2;
     
     double m_Vfunc;   // for bisection search
 
@@ -2396,8 +3378,11 @@ private:
 	m_aEtabVt[GlobalConstants::K]; 
     double m_aIk[GlobalConstants::K];  // 時点kに対するI, i.e. I_k
 public:
+    std::vector<Substring> m_vss;
+    std::vector<int> m_vssNum;
+    
     // Constructor
-    StringModel(GlobalConstants gcc, float GG, float TT);
+    StringModel(GlobalConstants &gcc, double GG, double TT);
     
     double getIb0() const{ return m_Ib0; };
     double getVmin() const{ return m_Vmin; };
@@ -2417,10 +3402,13 @@ public:
     double func(double x);  // getIで使われる２分法用
 
     void addSS();
+    void addSS(Substring &ss, int l);
+    void setGT(double G, double T);
+    void refreshMaxMin();
 
-    float setVars(double GG[], double TT[]);
-    float setVarsVss(double GG[], double TT[], int l);
-    float setVarsVssGetE(int l);
+    double setVars(double GG[], double TT[]);
+    double setVarsVss(double GG[], double TT[], int l);
+    double setVarsVssGetE(int l);
     
     void setSS_STCparams(double X[GlobalConstants::K], int l);
 
@@ -2432,6 +3420,7 @@ public:
     FiveParamsPlus get5paramsPlus(int l) const;
 
     void print(int l) const;
+    void distSTCParams(std::random_device::result_type &rd, double mean, double stdDev);
 };
 
 #endif
@@ -2442,31 +3431,25 @@ public:
 #include "globalConstants.hh"
 #include "stringModel.hh"
 #include "bisection.hh"
+#include <functional> ////////////////////////t
 
 /** Constructor    *****************************************************************
  *  GG (W/m^2), TT (degC)
  *  出力： m_gc, m_G, m_T, m_ssInit, m_Ib0, m_etabVt, m_IscSub, m_Vmin, m_Vmax
  *  関数呼び出し： Substring::getIb0, Substring::getEtabVt, Substring::getIsc
  *                 getV     ********************************************************/
-StringModel::StringModel(GlobalConstants gcc, float GG, float TT): m_gc{gcc}, m_G{GG}, m_T{TT},
+StringModel::StringModel(GlobalConstants &gcc, double GG, double TT): m_gc{gcc}, m_G{GG}, m_T{TT},
 								   m_ssInit{gcc, GG, TT}{
     m_Ib0 = m_ssInit.getIb0();
     m_etabVt = m_ssInit.getEtabVt();
 
-    // getI のために m_IscSub, m_Vmin, m_Vmaxをセットする
-    m_IscSub = m_ssInit.getIsc();
-
-    m_Ib099 = -0.99*m_Ib0;
+    m_IscSub = m_ssInit.getI(0.0);
+    m_mIb099 = -0.99999*m_Ib0;
     m_IscSub2 = 2.0*m_IscSub;
     
-    // for(int i=0; i<m_vss.size(); i++){  // コンストラクタの段階ではまだない
-    // 	double IscSub_i = m_vss[i].getIsc();
-    // 	if(IscSub_i > m_IscSub) m_IscSub = IscSub_i;
-    // }
-
     try{
 	m_Vmin = getV(2.0*m_IscSub);
-	m_Vmax = getV(-0.99*m_Ib0);
+	m_Vmax = getV(m_mIb099);
     }catch(std::exception e){
 	std::cout << e.what() << "-->StringModel::StringModel\n";
 	exit(0);//////////////t
@@ -2476,18 +3459,24 @@ StringModel::StringModel(GlobalConstants gcc, float GG, float TT): m_gc{gcc}, m_
     // std::cout << "StringModel Vmin=" << m_Vmin << " Vmax=" << m_Vmax << std::endl;////////////
 }
 
+/******************** 2026.10.16-- ***********************************/
+void StringModel::distSTCParams(std::random_device::result_type &rd,
+                                double mean, double stdDev){
+
+}
+
 /** m_aVmin[], m_aVmax[], m_aIb0[], m_aIscSub[], m_aEtabVt[]をセットする   **********
  *  入力： 引き数だけ
  *  出力： m_ssInit, m_vss, m_aIb0, m_aEtabVt, m_aIscSub, m_aVmin, m_aVmax
  *  関数呼び出し： Substring::setVars, Substring::getIb0(k), Substring::getEtabVt(k)
  *                 Substring::getIsc, getVIjunbi
  *  戻り値： Substring::setVarsの戻り値     *****************************************/
-float StringModel::setVars(double GG[], double TT[]){
-    float Eret = m_ssInit.setVars(GG, TT);
+double StringModel::setVars(double GG[], double TT[]){
+    double Eret = m_ssInit.setVars(GG, TT);
     if(Eret==INFINITY) return Eret;
     
     for(int i=0; i<m_vss.size(); i++){
-	float E = m_vss[i].setVars(GG, TT);
+	double E = m_vss[i].setVars(GG, TT);
 	if(E==INFINITY) return E;
 	else if(Eret < E) Eret= E;
     }
@@ -2522,8 +3511,8 @@ float StringModel::setVars(double GG[], double TT[]){
  *  出力： m_vss, m_aIscSub, m_aVmin, m_aVmax
  *  関数呼び出し： Substring::setVars, Substring::getIsc, getVIjunbi, getV
  *  戻り値： Substring::setVarsの戻り値     *****************************************/
-float StringModel::setVarsVss(double GG[], double TT[], int l){
-    float E =  m_vss[l].setVars(GG, TT);
+double StringModel::setVarsVss(double GG[], double TT[], int l){
+    double E =  m_vss[l].setVars(GG, TT);
     if(E==INFINITY) return E;
 
     for(int k=0; k<GlobalConstants::K; k++){
@@ -2552,8 +3541,8 @@ float StringModel::setVarsVss(double GG[], double TT[], int l){
  *  出力： m_vss, m_aIscSub, m_aVmin, m_aVmax
  *  関数呼び出し： Substring::setVars, Substring::getIsc, getVIjunbi, getV
  *  戻り値： Substring::setVarsの戻り値     *****************************************/
-float StringModel::setVarsVssGetE(int l){
-    float E =  m_vss[l].setVarsGetE();
+double StringModel::setVarsVssGetE(int l){
+    double E =  m_vss[l].setVarsGetE();
     // return m_vss[l].setVarsGetE();
     if(E==INFINITY) return E;
 
@@ -2608,15 +3597,15 @@ void StringModel::getVjunbiVss(int k, int l){
  *  関数呼び出し： m_vss.size, m_ssInit.getV, m_vss[i].getV     *********************/
 double StringModel::getV(double I){
     if(I <= -m_Ib0) return std::numeric_limits<double>::quiet_NaN();
-    
+
     double V0 = -m_etabVt*std::log(I/m_Ib0 +1.0);
     double V;
     try{
-	V = V0 + (m_gc.L-m_vss.size())*m_ssInit.getV(I);
-	// printf("V0=%g, L=%d, vss.size=%zd, ssV=%g, V=%g\n", V0, m_gc.L, m_vss.size(),
-	//        m_ssInit.getV(I), V);///////////////
-	// exit(0);/////////////////
-	for(int i=0; i<m_vss.size(); i++) V += m_vss[i].getV(I);
+	V = V0 + (m_gc.L-m_vssNumSum)*m_ssInit.getV(I);
+	for(int i=0; i<m_vss.size(); i++){
+            // printf("i=%d, vss_size=%d, I=%g\n", i, m_vss.size(), I);////////////////////t
+            V += m_vss[i].getV(I)*m_vssNum[i];
+        }
     }catch(std::exception e){
 	std::string str {e.what()};
 	throw std::runtime_error(str+"-->StringModel::getV");
@@ -2670,7 +3659,7 @@ double StringModel::getI(double V){
 	Bisection<StringModel> bis {this};
 	m_Vfunc = V;
 	// return bis.search(-0.99*m_Ib0, 2.0*m_IscSub);
-	return bis.search(m_Ib099, m_IscSub2);
+	return bis.search(m_mIb099, m_IscSub2);
     }
 }
 
@@ -2710,6 +3699,70 @@ void StringModel::addSS(){
     // Substring ss {m_ssInit};   // default copy constructor
     Substring ss {m_gc, 1000.0, 25.0};
     m_vss.push_back(ss);
+}
+
+/****************   Add substrings     ***********************************************/
+void StringModel::addSS(Substring &ss, int l){
+    m_vss.push_back(ss);
+    m_vssNum.push_back(l);
+    m_vssNumSum += l;
+
+    double Isc_ss {ss.getI(0.0)};
+    if(Isc_ss > m_IscSub) m_IscSub = Isc_ss;
+
+    // printf("auau2\n");//////////////////
+    // m_Vmin = getV(2.0*m_IscSub);
+    // printf("auau3\n");//////////////////
+    // m_Vmax = getV(m_mIb099);
+
+    try{
+	m_Vmin = getV(2.0*m_IscSub);
+	m_Vmax = getV(m_mIb099);
+    }catch(std::exception e){
+	std::cout << e.what() << "-->StringModel::StringModel\n";
+	exit(0);//////////////t
+    }
+
+}
+
+/******************************************************************************/
+void StringModel::setGT(double G, double T){
+    m_G = G;
+    m_T = T;
+    m_ssInit.setGT(G, T);
+    for(int i=0; i<m_vss.size(); i++) m_vss[i].setGT(G, T);
+
+    m_Ib0 = m_ssInit.getIb0();
+    m_etabVt = m_ssInit.getEtabVt();
+
+    m_IscSub = m_ssInit.getI(0.0);
+    m_mIb099 = -0.99999*m_Ib0;
+    m_IscSub2 = 2.0*m_IscSub;
+
+    for(int i=0; i<m_vss.size(); i++){
+	double Isc_ss {m_vss[i].getI(0.0)};
+	if(Isc_ss > m_IscSub) m_IscSub = Isc_ss;
+    }
+    
+    m_Vmin = getV(2.0*m_IscSub);
+    m_Vmax = getV(m_mIb099);
+}
+
+/******* Suppose refreshment after set5params of adaptiveModel ************/
+void StringModel::refreshMaxMin(){
+    m_ssInit.refreshMaxMin();
+    for(int i=0; i<m_vss.size(); i++) m_vss[i].refreshMaxMin();
+    
+    m_IscSub = m_ssInit.getI(0.0);
+    m_IscSub2 = 2.0*m_IscSub;
+
+    for(int i=0; i<m_vss.size(); i++){
+	double Isc_ss {m_vss[i].getI(0.0)};
+	if(Isc_ss > m_IscSub) m_IscSub = Isc_ss;
+    }
+    
+    m_Vmin = getV(2.0*m_IscSub);
+    m_Vmax = getV(m_mIb099);
 }
 
 /** サブストリングlのSTCパラメータをXでセットする    *********************************
@@ -2764,17 +3817,20 @@ void StringModel::print(int l) const{
 
 #include "stringModel.hh"
 // #include <string>
+#include "nr3.h"
+#include "mins.h"
 
 class StringGroup{
 private:
-    GlobalConstants m_gc;
+    GlobalConstants &m_gc;
     
     StringModel m_smInit;
-    std::vector<StringModel> m_vsm; // パラメータが変更されたストリング 0,1,2,...
+    std::vector<int> m_vsmNum;
+    int m_vsmNumSum {0};
 
     // smInitのもの
-    float m_G;   // W/m^2
-    float m_T;   // degC
+    double m_G;   // W/m^2
+    double m_T;   // degC
 
     double m_Ib0;
     double m_Ib0sg;
@@ -2796,13 +3852,15 @@ private:
 
     double m_bunbo;
 public:
+    std::vector<StringModel> m_vsm; // パラメータが変更されたストリング 0,1,2,...
     // Constructor
-    StringGroup(GlobalConstants gcc, float GG, float TT);
+    StringGroup(GlobalConstants &gcc, double GG, double TT);
 
     double getI(double V);
     double getV(double I);
 
     void getI(double Ik[GlobalConstants::K]);
+    double getI_LM(double V);
 
     double getVmin() const{ return m_Vmin; };
     double getVmax() const{ return m_Vmax; };
@@ -2812,7 +3870,18 @@ public:
     // for bisection search
     double func(double V);
 
+    void addSM(StringModel &sm, int s);
+    void setGT(double G, double T);
+    void refreshMaxMin();
+
+    // for getPmax
+    double operator()(const double V);   // returns -P at V=V
+    double getPmax(double &Vmp, double &Imp);
+
     void paramEstim(double G[], double T[], double I[], double V[], std::string Time[]);
+    void paramEstim2(double G[], double T[], double I[], double V[], std::string Time[]);
+
+    void distSTCParams();
 };
 
 // class XX {
@@ -2835,31 +3904,48 @@ public:
 #include <iomanip>  /////////////t
 #include <random>
 #include <string>
+#include <functional>  // for bind()
 
 /** Constructor     *****************************************************************
  * GG (W/m^2), TT (degC)     *******************************************************/
-StringGroup::StringGroup(GlobalConstants gcc, float GG, float TT)
+StringGroup::StringGroup(GlobalConstants &gcc, double GG, double TT)
     : m_gc{gcc}, m_G{GG}, m_T{TT}, m_smInit{gcc, GG, TT}{
     m_Ib0 = m_smInit.getIb0();
     m_Ib0sg = gcc.S*m_Ib0;
 
-    // getI のために IscSub, m_Vmin, m_Vmaxをセットする
     m_Vmin = m_smInit.getVmin();
     m_Vmax = m_smInit.getVmax();
     
-    // for(int i=0; i<m_vsm.size(); i++){
-    // 	double Vmin_i = m_vsm[i].getVmin();
-    // 	double Vmax_i = m_vsm[i].getVmax();
-    // 	if(Vmin_i > m_Vmin) m_Vmin = Vmin_i;   // m_Vminはmax Vmin_i
-    // 	if(Vmax_i > m_Vmax) m_Vmax = Vmax_i;
-    // }
-
     m_Imin = getI(m_Vmax);
     m_Imax = getI(m_Vmin);
+}
 
-    // std::cout << std::setprecision(20) << "m_Vmin=" << m_Vmin
-    // 	      << " m_Vmax=" << m_Vmax << " m_Imin=" << m_Imin << " m_Imax=" << m_Imax << std::endl; /////////////////////////////t
-    // exit(0);///////////////////
+/*********************** 2026.10.14-- ************************************/
+void StringGroup::distSTCParams(){
+    // auto gen = std::bind(std::normal_distribution<double>{1.0, 0.01},
+    //                      std::default_random_engine{});
+    // auto gen = std::bind(std::normal_distribution<double>{1.0, 0.005},
+    //                      std::default_random_engine{});
+    auto gen = std::bind(std::uniform_real_distribution<double>{1.0-m_gc.randSize, 1.0+m_gc.randSize}, std::default_random_engine{});
+    
+    for(int s=0; s < m_gc.S; s++){
+        StringModel sm(m_gc, m_G, m_T);
+        addSM(sm, 1);
+        // printf("m_vsm[%d] num=%d m_vsmNumSum=%d\n", s, m_vsmNum[s], m_vsmNumSum);//////////////////////
+        
+        for(int l=0; l < m_gc.L; l++){
+            Substring ss(m_gc, m_G, m_T); // from here no Initial?? 2026.11.13
+            m_vsm[s].addSS(ss, 1);
+            // printf("substring m_vsm[%d].m_vss[%d] num=%d\n", s, l, m_vsm[s].m_vssNum[l]);////////
+            AdaptiveModel am(m_gc, m_G, m_T, false, false); // STCparamsChanged=false, doCalc=false
+            printf("s=%d, l=%d\n", s, l);///////////////////////t
+            am.changeSTCParams(gen(), gen(), gen(), gen());
+            // exit(0);/////////////////////////////t
+            // m_vsm[s].m_vss[l].addAM(am, m_gc.Ns_sub);
+            // printf("m_vsm[%d].m_vss[%d]  vam_num=%d\n", s, l, m_vsm[s].m_vss[l].m_vamNum[0]);////////
+	    // exit(0);////////////////////////t
+        }
+    }
 }
 
 /** Calculate stringGroup current I (A) for voltage V (V)    ************************
@@ -2869,12 +3955,31 @@ double StringGroup::getI(double V){
     if(V < m_Vmin) return std::numeric_limits<double>::infinity();
     else if(m_Vmax < V) return -m_Ib0sg;
     else{
-	double I = (m_gc.S-m_vsm.size()) * m_smInit.getI(V);
+	double I = (m_gc.S-m_vsmNumSum) * m_smInit.getI(V);
 	for(int i=0; i<m_vsm.size(); i++){
-	    I += m_vsm[i].getI(V);
+	    I += m_vsm[i].getI(V)*m_vsmNum[i];
 	}
 	return I;
     }
+}
+
+/*********************** 2026.11.5-- ******************************/
+double StringGroup::getI_LM(double V){
+    printf("getI_LM V=%g\n", V);//////////////////////t
+    for(int s=0; s<m_vsm.size(); s++){
+	for(int l=0; l<m_vsm[s].m_vss.size(); l++){
+	    printf("substring (%d, %d)\n", s, l);///////////////////////t
+	    printf("g=%g, t=%g, rVocSTC=%g, rIscSTC=%g, rVmpSTC=%g, rImpSTC=%g\n",
+		   m_vsm[s].m_vss[l].m_vam[0].get_g(),
+		   m_vsm[s].m_vss[l].m_vam[0].get_t(),
+		   m_vsm[s].m_vss[l].m_vam[0].getVocSTC()*m_gc.Ns/m_gc.VocSTC,
+		   m_vsm[s].m_vss[l].m_vam[0].getIscSTC()/m_gc.IscSTC,
+		   m_vsm[s].m_vss[l].m_vam[0].getVmpSTC()*m_gc.Ns/m_gc.VmpSTC,
+		   m_vsm[s].m_vss[l].m_vam[0].getImpSTC()/m_gc.ImpSTC);///////////t
+	}
+    }
+    exit(0);//////////////////////////t
+    return 0.0;
 }
 
 /** m_aVsg[K]に対するIkを計算して、Ik[K]に書き込む    *******************************/
@@ -2904,6 +4009,117 @@ double StringGroup::getV(double I){
 double StringGroup::func(double V){
     return getI(V)-m_Ifunc;
 }
+/************************************************************************/
+void StringGroup::addSM(StringModel &sm, int s){
+    m_vsm.push_back(sm);
+    m_vsmNum.push_back(s);
+    m_vsmNumSum += s;
+
+    // printf("Vmin=%g, Vmax=%g, Imin=%g, Imax=%g\n",
+    // 	   m_Vmin, m_Vmax, m_Imin, m_Imax);////////////////
+    double Vmax {sm.getVmax()};
+    if(Vmax > m_Vmax){
+	m_Vmax = Vmax;
+	m_Imin = getI(m_Vmax);
+    }
+    double Vmin {sm.getVmin()};
+    if(Vmin > m_Vmin){  // Vmin = max Vmin_i !!
+	m_Vmin = Vmin;
+	m_Imax = getI(m_Vmin);
+    }
+    // printf("Vmin=%g, Vmax=%g, Imin=%g, Imax=%g\n",
+    // 	   m_Vmin, m_Vmax, m_Imin, m_Imax);////////////////
+}
+
+/******************************************************************/
+void StringGroup::setGT(double G, double T){
+    m_G = G;
+    m_T = T;
+
+    if(m_vsmNumSum < m_gc.S){
+        m_smInit.setGT(G, T);
+        printf("m_vsmNumSum < m_gc.S\n");/////////////t
+    }else{
+        printf("no m_vsmNumSum < m_gc.S\n");/////////////t
+    }
+    exit(0);//////////////////////t
+    for(int i=0; i<m_vsm.size(); i++) m_vsm[i].setGT(G, T);
+
+    m_Ib0 = m_smInit.getIb0();
+    m_Ib0sg = m_gc.S*m_Ib0;
+
+    m_Vmin = m_smInit.getVmin();
+    m_Vmax = m_smInit.getVmax();
+    for(int i=0; i<m_vsm.size(); i++){
+	double Vmax {m_vsm[i].getVmax()};
+	if(Vmax > m_Vmax) m_Vmax = Vmax;
+	double Vmin {m_vsm[i].getVmin()};
+	if(Vmin > m_Vmin) m_Vmin = Vmin;  // Vmin = max Vmin_i !!
+    }	
+    
+    m_Imin = getI(m_Vmax);
+    m_Imax = getI(m_Vmin);
+
+}
+
+/****** Refresh maxmin parameters after set5params of adaptiveModel ***********/
+void StringGroup::refreshMaxMin(){
+    m_smInit.refreshMaxMin();
+    for(int i=0; i<m_vsm.size(); i++) m_vsm[i].refreshMaxMin();
+
+    m_Vmin = m_smInit.getVmin();
+    m_Vmax = m_smInit.getVmax();
+    for(int i=0; i<m_vsm.size(); i++){
+	double Vmax {m_vsm[i].getVmax()};
+	if(Vmax > m_Vmax) m_Vmax = Vmax;
+	double Vmin {m_vsm[i].getVmin()};
+	if(Vmin > m_Vmin) m_Vmin = Vmin;  // Vmin = max Vmin_i !!
+    }	
+    
+    m_Imin = getI(m_Vmax);
+    m_Imax = getI(m_Vmin);
+}
+
+/********* Return -P for searching maximum P ***************************/
+double StringGroup::operator()(const double V){
+    return -getI(V)*V;
+}
+/***************************************************************/
+double StringGroup::getPmax(double &Vmp, double &Imp){
+    double Voc {getV(0.0)};
+    // printf("Voc=%g\n", Voc);//////////////////////////////
+
+    // Golden golden;
+    // golden.ax = 0.0;
+    // golden.cx = Voc;
+    // golden.bx = 0.38197*Voc;  // Golden section
+    // Vmp = golden.minimize(*this);
+    // double Pmax = -golden.fmin;
+
+    // Brent's method
+    Brent brent;
+    brent.ax = 0.0;
+    brent.cx = Voc;
+    brent.bx = 0.38197*Voc;  // Golden section
+    Vmp = brent.minimize(*this);
+    double Pmax = -brent.fmin;
+
+    Imp = getI(Vmp);
+    return Pmax;
+}
+
+/********************** 2026.10.28-- ****************************/
+void StringGroup::paramEstim2(double GG[], double TT[], double II[], double VV[], std::string Time[]){
+    printf("StringGroup.paramEstim2()\n");/////////////////////t
+    double I[GlobalConstants::K];
+    for(int k=0; k < m_gc.K; k++){
+        // setGT(GG[k], TT[k]);
+        // I[k] = getI(VV[k]);
+	I[k] = getI_LM(VV[k]);
+        printf("II[%d]=%g, I[%d]=%g\n", k, II[k], k, I[k]);////////////t
+    }
+
+}
 
 /** 測定データG, T, I, V に最もフィットするパラメータを探索して、それに設定する   ***
  *  出力： m_aG[], m_aT[], m_aIsg[], m_aVsg[]     **********************************/
@@ -2915,8 +4131,8 @@ void StringGroup::paramEstim(double GG[], double TT[], double II[], double VV[],
 	m_aVsg[k] = VV[k];
     }
     
-    float Eret = m_smInit.setVars(GG, TT);
-    if(Eret==INFINITY){
+    double Eret = m_smInit.setVars(GG, TT);
+    if(Eret==std::numeric_limits<double>::infinity()){
 	std::cout << "StringGroup::paramEstim, smInit.setVars()=INFINITY, error\n";
 	exit(-1);
     }
@@ -2953,11 +4169,11 @@ void StringGroup::paramEstim(double GG[], double TT[], double II[], double VV[],
     bool finishString = false;
 
     for(int s=0; s < m_gc.S; s++){ // 各ストリングsに対して
-	double Emin = INFINITY;
+	double Emin = std::numeric_limits<double>::infinity();
 	
 	StringModel sm_s {m_gc, 1000.0, 25.0};
 	Eret = sm_s.setVars(GG, TT);
-	if(Eret==INFINITY){
+	if(Eret==std::numeric_limits<double>::infinity()){
 	    std::cout << "StringGroup::paramEstim, sm_s.setVars()=INFINITY, error\n";
 	    exit(-1);
 	}
@@ -3033,7 +4249,7 @@ double StringGroup::getE(double X[4], int s, int l){
     // if(m_vsm[s].setVars(m_aG, m_aT)==INFINITY) return INFINITY;
     // if(m_vsm[s].setVarsVss(m_aG, m_aT, l)==INFINITY) return INFINITY;
     // m_vsm[s].m_vss[l].m_am.calcPCS(m_aG, m_aT);
-    if(m_vsm[s].setVarsVssGetE(l)==INFINITY) return INFINITY;
+    if(m_vsm[s].setVarsVssGetE(l)==std::numeric_limits<double>::infinity()) return std::numeric_limits<double>::infinity();
     
     double IkStr[GlobalConstants::K];
     
@@ -3086,8 +4302,8 @@ double StringGroup::ELPSOsearch(double XX[4], int ss, int ll){
     double Pg[varNum];  // Global best
 
     double Eval_P[Np];
-    for(int i=0; i<Np; i++) Eval_P[i] = INFINITY;
-    double Eval_Pg {INFINITY};
+    for(int i=0; i<Np; i++) Eval_P[i] = std::numeric_limits<double>::infinity();
+    double Eval_Pg {std::numeric_limits<double>::infinity()};
     
     double V[Np][varNum];
     for(int i=0; i<Np; i++)
@@ -3258,3 +4474,418 @@ double StringGroup::ELPSOsearch(double XX[4], int ss, int ll){
 
     return Eval_Pg;
 }
+/**************************************************************************
+ *        myCalendar.hh
+ ************************************************************************/
+#if !defined(__MYCALENDAR_HH)
+#define __MYCALENDAR_HH
+#include <ctime>
+#include <string>
+
+class MyCalendar: public tm{
+public:
+    MyCalendar(){}
+    MyCalendar(std::string timeStr);
+    void set(std::string timeStr);
+    void set(int y, int m, int d, int h, int min);
+    void set(int h, int min);
+    void set(MyCalendar myCal);
+    void addHour(double hour);
+    void addMin(int min);
+    bool before(MyCalendar myCal);
+    bool after(MyCalendar myCal);
+    void print();
+};
+
+#endif
+// -*- C++ -*-
+/**************************************************************************
+ *        myCalendar.cu
+ ************************************************************************/
+#include "myCalendar.hh"
+#include "PCSData.hh"
+
+MyCalendar::MyCalendar(std::string timeStr){
+    set(timeStr);
+}
+    
+void MyCalendar::set(std::string timeStr){
+    // printf("%s\n", timeStr.c_str());
+    std::vector<std::string> splitStr = PCSData::splitString(timeStr, '/');
+    // for(int i=0; i<splitStr.size(); i++){
+    //     printf("%s\n", splitStr[i].c_str());
+    // }
+
+    tm_year = stoi(splitStr[0])-1900;
+    tm_mon = stoi(splitStr[1])-1;  // 1譛医′0
+    tm_mday = stoi(splitStr[2]);
+    std::vector<std::string> splitStrTime = PCSData::splitString(splitStr[3], ':');
+    tm_hour = stoi(splitStrTime[0]);
+    tm_min = stoi(splitStrTime[1]);
+    // printf("year=%d, month=%d, day=%d, hour=%d, min=%d\n",
+    //        tm_year, tm_mon, tm_mday, tm_hour, tm_min);
+    // char str[50];
+    // strftime(str, 50, "%Y/%m/%d %H:%M", this);
+    // std::cout << str << std::endl;
+    // exit(0);    
+}
+
+void MyCalendar::set(int y, int m, int d, int h, int min){
+    tm_year = y-1900;
+    tm_mon = m-1;  // 1譛医′0
+    tm_mday = d;
+    tm_hour = h;
+    tm_min = min;
+}
+
+void MyCalendar::set(int h, int min){
+    tm_hour = h;
+    tm_min = min;
+}
+
+void MyCalendar::set(MyCalendar myCal){
+    set(myCal.tm_year+1900, myCal.tm_mon+1, myCal.tm_mday, myCal.tm_hour,
+        myCal.tm_min);
+}
+
+void MyCalendar::addHour(double hour){
+     int h = static_cast<int>(hour);
+     int min = static_cast<int>((hour-h)*60.0);
+     // printf("hour=%f, h=%d, min=%d\n", hour, h, min);/////////
+     tm_min += min;
+     if(tm_min > 60){
+         tm_hour += 1;
+         tm_min -= 60;
+     }
+     tm_hour += h;
+}
+
+void MyCalendar::addMin(int min){
+     tm_min += min;
+     if(tm_min > 60){
+         tm_hour += 1;
+         tm_min -= 60;
+     }
+}
+
+bool MyCalendar::before(MyCalendar myCal){
+    if(tm_year < myCal.tm_year) return true;
+    if(tm_year > myCal.tm_year) return false;
+    if(tm_mon < myCal.tm_mon) return true;
+    if(tm_mon > myCal.tm_mon) return false;
+    if(tm_mday < myCal.tm_mday) return true;
+    if(tm_mday > myCal.tm_mday) return false;
+    if(tm_hour < myCal.tm_hour) return true;
+    if(tm_hour > myCal.tm_hour) return false;
+    if(tm_min <= myCal.tm_min) return true;
+    return false;
+}
+
+bool MyCalendar::after(MyCalendar myCal){
+    if(tm_year > myCal.tm_year) return true;
+    if(tm_year < myCal.tm_year) return false;
+    if(tm_mon > myCal.tm_mon) return true;
+    if(tm_mon < myCal.tm_mon) return false;
+    if(tm_mday > myCal.tm_mday) return true;
+    if(tm_mday < myCal.tm_mday) return false;
+    if(tm_hour > myCal.tm_hour) return true;
+    if(tm_hour < myCal.tm_hour) return false;
+    if(tm_min >= myCal.tm_min) return true;
+    return false;
+}
+
+void MyCalendar::print(){
+    char str[50];
+    strftime(str, 50, "%Y/%m/%d %H:%M", this);
+    std::cout << str << std::endl;
+}
+/*********************************************************************
+ *      searchHistoryAM.hh
+ ********************************************************************/
+#if !defined(_SEARCH_HISTORY_AM_HH)
+#define _SEARCH_HISTORY_AM_HH
+
+#include <vector>
+#include <string>
+
+/***********************************************/
+struct SearchResult{
+    // inputs
+    double Isc, Voc, Imp, Vmp, Tkel, absA0, absB0;
+    // outputs
+    double Rs, eta, Rh, I0, Iph, Emin;
+
+    bool equal(SearchResult &sr);
+};
+
+// /***********************************************/
+// struct SearchResultLM{
+//     // inputs
+//     double rVocSTC, rIscSTC, rVmpSTC, rImpSTC, g, t;
+//     // outputs
+//     double Rs, eta, Iph, I0, Rh, Emin;
+
+//     double absDist(SearchResultLM &sr);
+// };
+
+/************************************************/
+class SearchHistoryAM{
+private:
+    std::string m_fileName;
+    int m_fileLineNum {0};
+
+    float m_IscSTC_MD;
+    float m_VocSTC_MD;
+    float m_ImpSTC_MD;
+    float m_VmpSTC_MD;
+
+public:
+    SearchHistoryAM(bool haveGPU);
+    ~SearchHistoryAM();
+
+    void setSTCValues(float IscSTC, float VocSTC, float ImpSTC, float VmpSTC); 
+    
+    // A history of search results
+    std::vector<SearchResult> m_vsr;
+    
+    int haveSearchResult(SearchResult &sr);
+    double absDist(SearchResult &sr1, SearchResult &sr2);
+    int nearestSearchResult(SearchResult &sr, double &minAbsDist);
+    
+    void readFile();
+    void saveFile();
+};
+
+// /******* 2026.11.3--
+// 	 Search History for LM algorithm for adaptive model
+// *************************************/
+// class SearchHistoryLM{
+// private:
+//     std::string m_fileName {"Dat/searchHistoryLM.dat"};
+//     int m_fileLineNum {0};
+
+// public:
+//     SearchHistoryLM();
+//     ~SearchHistoryLM();
+    
+//     // A history of search results
+//     std::vector<SearchResultLM> m_vsr;
+
+//     int nearestSearchResult(SearchResultLM &sr, double &minAbsDist);
+//     void addSearchResult(SearchResultLM &sr);
+//     void readFile();
+//     void saveFile();
+// };
+
+#endif
+
+// -*- C++ -*-
+/*********************************************************************
+ *      searchHistoryAM.cu
+ ********************************************************************/
+#include "searchHistoryAM.hh"
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <cmath>
+#include "PCSData.hh"
+
+/***************** Constructor *****************************/
+SearchHistoryAM::SearchHistoryAM(bool haveGPU){
+    if(haveGPU) m_fileName = "Dat/searchHistoryAM_GPU.dat";
+    else m_fileName = "Dat/searchHistoryAM_NoGPU.dat";
+    readFile();
+}
+
+// /***************** Constructor *****************************/
+// SearchHistoryLM::SearchHistoryLM(){
+//     readFile();
+// }
+
+/***************** Destructor *****************************/
+SearchHistoryAM::~SearchHistoryAM(){
+    saveFile();
+}
+
+// /***************** Destructor *****************************/
+// SearchHistoryLM::~SearchHistoryLM(){
+//     saveFile();
+// }
+
+/**********************************************************/
+void SearchHistoryAM::setSTCValues(float IscSTC, float VocSTC, float ImpSTC, float VmpSTC){
+    m_IscSTC_MD = IscSTC;
+    m_VocSTC_MD = VocSTC;
+    m_ImpSTC_MD = ImpSTC;
+    m_VmpSTC_MD = VmpSTC;
+}
+
+/**********************************************************/
+int SearchHistoryAM::haveSearchResult(SearchResult &sr){
+    for(int i=0; i<m_vsr.size(); i++){
+	if(m_vsr[i].equal(sr)) return i;
+    }
+    return -1;
+}
+
+/**********************************************************/
+double SearchHistoryAM::absDist(SearchResult &sr1, SearchResult &sr2){
+    return std::abs(sr1.Isc-sr2.Isc)/m_IscSTC_MD +std::abs(sr1.Voc-sr2.Voc)/m_VocSTC_MD
+        +std::abs(sr1.Imp-sr2.Imp)/m_ImpSTC_MD +std::abs(sr1.Vmp-sr2.Vmp)/m_VmpSTC_MD
+        +std::abs(sr1.Tkel-sr2.Tkel)/40.0;
+}
+
+/**********************************************************/
+int SearchHistoryAM::nearestSearchResult(SearchResult &sr, double &minAbsDist){
+    double minDist {std::numeric_limits<double>::infinity()};
+    int minIndex {-1};
+    for(int i=0; i<m_vsr.size(); i++){
+	double dist {absDist(sr, m_vsr[i])};
+	if(dist < minDist){
+	    minDist = dist;
+	    minIndex = i;
+	}
+    }
+    minAbsDist = minDist;
+    return minIndex;
+}
+
+// /**********************************************************/
+// int SearchHistoryLM::nearestSearchResult(SearchResultLM &sr, double &minAbsDist){
+//     double minDist {std::numeric_limits<double>::infinity()};
+//     int minIndex {-1};
+//     for(int i=0; i<m_vsr.size(); i++){
+// 	double dist {m_vsr[i].absDist(sr)};
+// 	if(dist < minDist){
+// 	    minDist = dist;
+// 	    minIndex = i;
+// 	}
+//     }
+//     minAbsDist = minDist;
+//     return minIndex;
+// }
+
+// /**********************************************************/
+// void SearchHistoryLM::addSearchResult(SearchResultLM &sr){
+//     for(int i=0; i<m_vsr.size(); i++){
+//         if(m_vsr[i].absDist(sr)==0.0) return;
+//     }
+//     m_vsr.push_back(sr);
+// }
+    
+
+/**********************************************************/
+bool SearchResult::equal(SearchResult &sr){
+    if(Isc==sr.Isc && Voc==sr.Voc && Imp==sr.Imp
+       && Vmp==sr.Vmp && Tkel==sr.Tkel
+       && absA0==sr.absA0 && absB0==sr.absB0){
+        // printf("SearchResutl.equal() true: Isc=%g, sr.Isc=%g\n", Isc, sr.Isc);//////////////////////t
+        return true;
+    } else return false;
+}
+
+// /*********************************************************/
+// double SearchResultLM::absDist(SearchResultLM &sr){
+//     return std::abs(rVocSTC-sr.rVocSTC) + std::abs(rIscSTC-sr.rIscSTC)
+// 	+ std::abs(rVmpSTC-sr.rVmpSTC) + std::abs(rImpSTC-sr.rImpSTC)
+// 	+ std::abs(g-sr.g) + std::abs(t-sr.t);
+// }
+
+/***************************************************************/
+void SearchHistoryAM::readFile(){
+    std::fstream fs {m_fileName, std::ios_base::in};
+    if(!fs){
+	std::cout << "couldn't open '"<< m_fileName << "' for reading" << std::endl;
+	return;
+    }
+
+    std::string str;
+    while(std::getline(fs, str)){
+	std::vector<std::string> vStr = PCSData::splitString(str, ',');
+
+	SearchResult sr;
+	sr.Isc = stod(vStr[0]);
+	sr.Voc = stod(vStr[1]);
+	sr.Imp = stod(vStr[2]);
+	sr.Vmp = stod(vStr[3]);
+	sr.Tkel = stod(vStr[4]);
+	sr.absA0 = stod(vStr[5]);
+	sr.absB0 = stod(vStr[6]);
+	sr.Rs = stod(vStr[7]);
+	sr.eta = stod(vStr[8]);
+	sr.Rh = stod(vStr[9]);
+	sr.I0 = stod(vStr[10]);
+	sr.Iph = stod(vStr[11]);
+	sr.Emin = stod(vStr[12]);
+
+	m_vsr.push_back(sr);
+	m_fileLineNum++;
+    }
+    printf("SearchHistoryAM::readFile(), file '%s' read.\n",
+	   m_fileName.c_str());///////////////////
+}
+
+// /***************************************************************/
+// void SearchHistoryLM::readFile(){
+//     std::fstream fs {m_fileName, std::ios_base::in};
+//     if(!fs){
+// 	std::cout << "couldn't open '"<< m_fileName << "' for reading" << std::endl;
+// 	return;
+//     }
+
+//     std::string str;
+//     while(std::getline(fs, str)){
+// 	std::vector<std::string> vStr = PCSData::splitString(str, ',');
+
+// 	SearchResultLM sr;
+// 	sr.rVocSTC = stod(vStr[0]);
+// 	sr.rIscSTC = stod(vStr[1]);
+// 	sr.rVmpSTC = stod(vStr[2]);
+// 	sr.rImpSTC = stod(vStr[3]);
+// 	sr.g = stod(vStr[4]);
+// 	sr.t = stod(vStr[5]);
+// 	sr.Rs = stod(vStr[6]);
+// 	sr.eta = stod(vStr[7]);
+// 	sr.Iph = stod(vStr[8]);
+// 	sr.I0 = stod(vStr[9]);
+// 	sr.Rh = stod(vStr[10]);
+// 	sr.Emin = stod(vStr[11]);
+
+// 	m_vsr.push_back(sr);
+// 	m_fileLineNum++;
+//     }
+//     printf("SearchHistoryLM::readFile(), file '%s' read.\n",
+// 	   m_fileName.c_str());///////////////////
+// }
+
+/***************************************************************/
+void SearchHistoryAM::saveFile(){
+    std::fstream fs {m_fileName, std::ios_base::app};
+    fs << std::scientific << std::setprecision(20);
+	
+    for(int i=m_fileLineNum; i<m_vsr.size(); i++){
+	fs << m_vsr[i].Isc << ", " << m_vsr[i].Voc << ", " << m_vsr[i].Imp << ", "
+	    << m_vsr[i].Vmp << ", " << m_vsr[i].Tkel << ", " << m_vsr[i].absA0 << ", "
+	   << m_vsr[i].absB0 << ", " << m_vsr[i].Rs << ", " << m_vsr[i].eta
+	   << ", " << m_vsr[i].Rh << ", " << m_vsr[i].I0 << ", " << m_vsr[i].Iph << ", "
+	   << m_vsr[i].Emin <<std::endl; 
+    }
+    fs.close();
+    printf("SearchHistoryAM::saveFile(), %zd lines added to file '%s'.\n", m_vsr.size()-m_fileLineNum, m_fileName.c_str());///////////////////
+}
+
+// /***************************************************************/
+// void SearchHistoryLM::saveFile(){
+//     std::fstream fs {m_fileName, std::ios_base::app};
+//     fs << std::scientific << std::setprecision(20);
+	
+//     for(int i=m_fileLineNum; i<m_vsr.size(); i++){
+// 	fs << m_vsr[i].rVocSTC << ", " << m_vsr[i].rIscSTC << ", " << m_vsr[i].rVmpSTC << ", "
+// 	   << m_vsr[i].rImpSTC << ", " << m_vsr[i].g << ", " << m_vsr[i].t << ", "
+// 	   << m_vsr[i].Rs << ", " << m_vsr[i].eta << ", " << m_vsr[i].Iph
+// 	   << ", " << m_vsr[i].I0 << ", " << m_vsr[i].Rh << ", "
+// 	   << m_vsr[i].Emin <<std::endl; 
+//     }
+//     fs.close();
+//     printf("SearchHistoryLM::saveFile(), %zd lines added to file '%s'.\n", m_vsr.size()-m_fileLineNum, m_fileName.c_str());///////////////////
+// }
